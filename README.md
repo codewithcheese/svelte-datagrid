@@ -22,25 +22,28 @@ A powerful, high-performance data grid component for Svelte 5.
 
 Features are implemented in order of complexity. Each category must pass all tests and benchmarks before proceeding.
 
-### Phase 1: Baseline Table UX (Low Complexity)
+### Phase 1: Baseline Table UX (Low Complexity) ✅
 
 Core behaviors most grids need early.
 
-- [ ] Render rows/columns with header + body
-- [ ] Basic column definitions (field, title, width, align)
-- [ ] Basic formatting (string/number/date display, null handling)
-- [ ] Empty/loading/error states
-- [ ] Row identity (stable keys/IDs), basic row hover/striping
+- [x] Render rows/columns with header + body
+- [x] Basic column definitions (field, title, width, align)
+- [x] Basic formatting (string/number/date display, null handling)
+- [x] Empty/loading/error states
+- [x] Row identity (stable keys/IDs), basic row hover/striping
+- [x] Row virtualization (high-performance windowing)
 - [ ] Simple pagination (client-side)
 
 ### Phase 2: Common Interaction Controls (Low → Medium)
 
 Straightforward, but needs careful state handling.
 
-- [ ] Sorting (single-column, then multi-column)
-- [ ] Row selection (single/multi, checkboxes, select all visible)
-- [ ] Column show/hide + reorder (drag/drop) + reset to default
-- [ ] Column resizing (simple, fixed row heights)
+- [x] Sorting (single-column, then multi-column)
+- [x] Row selection (single/multi, Ctrl+click, Shift+click range, select all)
+- [x] Keyboard navigation (arrow keys, Home/End, Page Up/Down)
+- [x] Column show/hide toggle
+- [ ] Column reorder (drag/drop) + reset to default
+- [x] Column resizing (simple, fixed row heights)
 - [ ] Column menus (sort/filter/hide/pin actions)
 - [ ] Basic state persistence (save/restore column order/width/sort)
 
@@ -117,7 +120,7 @@ Powerful but expensive: complex state models + UI + server integration.
 
 Must be designed in early for virtualized grids.
 
-- [ ] Accessibility: keyboard model, focus management, ARIA grid patterns
+- [x] Accessibility: keyboard model, focus management, ARIA grid patterns (basic)
 - [ ] Screen reader robustness with virtualization
 - [ ] High contrast / reduced motion support
 - [ ] Locale-aware sorting & formatting
@@ -138,6 +141,76 @@ What makes a grid "best-in-class."
 - [ ] Interop adapters
 
 ---
+
+## Quick Start
+
+```svelte
+<script>
+  import { DataGrid } from 'svelte-datagrid';
+
+  const data = [
+    { id: 1, name: 'Alice', age: 30 },
+    { id: 2, name: 'Bob', age: 25 },
+    { id: 3, name: 'Charlie', age: 35 },
+  ];
+
+  const columns = [
+    { key: 'id', header: 'ID', width: 80 },
+    { key: 'name', header: 'Name' },
+    { key: 'age', header: 'Age', width: 100 },
+  ];
+</script>
+
+<DataGrid {data} {columns} height={400} selectable="multiple" />
+```
+
+## Features
+
+### Selection
+
+- **Single selection**: Click a row to select it
+- **Multiple selection**: Set `selectable="multiple"`
+- **Ctrl+click**: Toggle selection without clearing
+- **Shift+click**: Select a range of rows
+- **Ctrl+A**: Select all rows (when grid has focus)
+- **Escape**: Clear selection
+
+### Keyboard Navigation
+
+- **Arrow Up/Down**: Move focus between rows
+- **Shift+Arrow**: Extend selection
+- **Page Up/Down**: Navigate by page
+- **Ctrl+Home**: Jump to first row
+- **Ctrl+End**: Jump to last row
+
+### Column Visibility
+
+```typescript
+// In your component
+gridState.setColumnVisibility('columnKey', false); // Hide column
+gridState.setColumnVisibility('columnKey', true);  // Show column
+```
+
+### Sorting
+
+Click column headers to sort. Hold Shift to multi-sort.
+
+### Query Module (Data Sources)
+
+The grid includes a backend-agnostic query module for server-side data:
+
+```typescript
+import { createLocalDataSource, createPostgresDataSource } from 'svelte-datagrid/query';
+
+// In-memory data source
+const localDs = createLocalDataSource(myData, 'id');
+
+// PostgreSQL data source (works with pg, PgLite, Neon, etc.)
+const pgDs = createPostgresDataSource({
+  connection: pool, // Any client with query(sql, params) method
+  table: 'users'
+});
+```
 
 ## Development
 

@@ -124,6 +124,8 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	let selectedIds = $state<Set<string | number>>(new Set());
 	let focusedRowId = $state<string | number | null>(null);
 	let focusedColumnKey = $state<string | null>(null);
+	let lastSelectedRowId = $state<string | number | null>(null); // For shift+click range selection
+	let focusedRowIndex = $state<number>(-1); // Track index for keyboard navigation
 
 	// Viewport state
 	let scrollTop = $state(0);
@@ -291,6 +293,61 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		}
 
 		selectedIds = newSelected;
+		lastSelectedRowId = rowId; // Track for range selection
+
+		// Update focused row index
+		const idx = processedData.findIndex((row, i) => getRowId(row, i) === rowId);
+		if (idx >= 0) {
+			focusedRowIndex = idx;
+			focusedRowId = rowId;
+		}
+
+		options.onSelectionChange?.(selectedIds);
+	}
+
+	/**
+	 * Select a range of rows from lastSelectedRowId to targetRowId.
+	 * Used for Shift+click selection.
+	 */
+	function selectRange(targetRowId: string | number) {
+		if (options.selectionMode !== 'multiple') {
+			selectRow(targetRowId, 'set');
+			return;
+		}
+
+		const anchorId = lastSelectedRowId ?? targetRowId;
+
+		// Find indices of anchor and target in processed data
+		let anchorIndex = -1;
+		let targetIndex = -1;
+
+		for (let i = 0; i < processedData.length; i++) {
+			const id = getRowId(processedData[i], i);
+			if (id === anchorId) anchorIndex = i;
+			if (id === targetRowId) targetIndex = i;
+			if (anchorIndex >= 0 && targetIndex >= 0) break;
+		}
+
+		if (anchorIndex < 0 || targetIndex < 0) {
+			selectRow(targetRowId, 'set');
+			return;
+		}
+
+		// Select all rows in range
+		const start = Math.min(anchorIndex, targetIndex);
+		const end = Math.max(anchorIndex, targetIndex);
+
+		const newSelected = new Set(selectedIds);
+		for (let i = start; i <= end; i++) {
+			const id = getRowId(processedData[i], i);
+			newSelected.add(id);
+		}
+
+		selectedIds = newSelected;
+		focusedRowIndex = targetIndex;
+		focusedRowId = targetRowId;
+		// Note: Don't update lastSelectedRowId here to maintain anchor point
+
 		options.onSelectionChange?.(selectedIds);
 	}
 
@@ -356,9 +413,14 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		columnOrder = newOrder.filter((key) => newColumns.some((c) => c.key === key));
 	}
 
-	function scrollToRow(index: number, align: 'start' | 'center' | 'end' = 'start') {
+	function scrollToRow(index: number, align: 'start' | 'center' | 'end' | 'nearest' = 'start') {
 		const row = index;
 		if (row < 0 || row >= processedData.length) return;
+
+		const rowTop = row * rowHeight;
+		const rowBottom = rowTop + rowHeight;
+		const viewportTop = scrollTop;
+		const viewportBottom = scrollTop + containerHeight;
 
 		let targetScrollTop: number;
 
@@ -368,6 +430,16 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 				break;
 			case 'end':
 				targetScrollTop = row * rowHeight - containerHeight + rowHeight;
+				break;
+			case 'nearest':
+				// Only scroll if row is not fully visible
+				if (rowTop < viewportTop) {
+					targetScrollTop = rowTop; // Scroll up to show row at top
+				} else if (rowBottom > viewportBottom) {
+					targetScrollTop = rowBottom - containerHeight; // Scroll down to show row at bottom
+				} else {
+					return; // Row is already visible, no scroll needed
+				}
 				break;
 			default:
 				targetScrollTop = row * rowHeight;
@@ -379,6 +451,89 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	function setFocus(rowId: string | number | null, columnKey: string | null) {
 		focusedRowId = rowId;
 		focusedColumnKey = columnKey;
+
+		if (rowId !== null) {
+			const idx = processedData.findIndex((row, i) => getRowId(row, i) === rowId);
+			if (idx >= 0) focusedRowIndex = idx;
+		}
+	}
+
+	/**
+	 * Navigate to a row by relative offset (for arrow key navigation).
+	 * Returns the new focused row ID or null if navigation not possible.
+	 */
+	function navigateRow(offset: number, select: boolean = false, extendSelection: boolean = false): string | number | null {
+		const currentIndex = focusedRowIndex >= 0 ? focusedRowIndex : 0;
+		const newIndex = Math.max(0, Math.min(processedData.length - 1, currentIndex + offset));
+
+		if (newIndex === currentIndex && focusedRowIndex >= 0) {
+			return focusedRowId;
+		}
+
+		if (processedData.length === 0) return null;
+
+		const newRow = processedData[newIndex];
+		const newRowId = getRowId(newRow, newIndex);
+
+		focusedRowIndex = newIndex;
+		focusedRowId = newRowId;
+
+		if (select) {
+			if (extendSelection && options.selectionMode === 'multiple') {
+				selectRange(newRowId);
+			} else {
+				selectRow(newRowId, 'set');
+			}
+		}
+
+		// Ensure the row is visible
+		scrollToRow(newIndex, 'nearest');
+
+		return newRowId;
+	}
+
+	/**
+	 * Navigate to first row.
+	 */
+	function navigateToFirst(select: boolean = false): string | number | null {
+		if (processedData.length === 0) return null;
+
+		focusedRowIndex = 0;
+		focusedRowId = getRowId(processedData[0], 0);
+
+		if (select) {
+			selectRow(focusedRowId, 'set');
+		}
+
+		scrollToRow(0, 'start');
+		return focusedRowId;
+	}
+
+	/**
+	 * Navigate to last row.
+	 */
+	function navigateToLast(select: boolean = false): string | number | null {
+		if (processedData.length === 0) return null;
+
+		const lastIndex = processedData.length - 1;
+		focusedRowIndex = lastIndex;
+		focusedRowId = getRowId(processedData[lastIndex], lastIndex);
+
+		if (select) {
+			selectRow(focusedRowId, 'set');
+		}
+
+		scrollToRow(lastIndex, 'end');
+		return focusedRowId;
+	}
+
+	/**
+	 * Navigate by page (for Page Up/Down).
+	 */
+	function navigateByPage(direction: 'up' | 'down', select: boolean = false): string | number | null {
+		const visibleRowCount = Math.floor(containerHeight / rowHeight);
+		const offset = direction === 'down' ? visibleRowCount : -visibleRowCount;
+		return navigateRow(offset, select);
 	}
 
 	// Return public API
@@ -447,6 +602,12 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		get hiddenColumns() {
 			return hiddenColumns;
 		},
+		get focusedRowIndex() {
+			return focusedRowIndex;
+		},
+		get lastSelectedRowId() {
+			return lastSelectedRowId;
+		},
 
 		// Config (non-reactive)
 		rowHeight,
@@ -460,6 +621,7 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		setFilter,
 		clearFilters,
 		selectRow,
+		selectRange,
 		selectAll,
 		clearSelection,
 		isRowSelected,
@@ -470,7 +632,11 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		updateData,
 		updateColumns,
 		scrollToRow,
-		setFocus
+		setFocus,
+		navigateRow,
+		navigateToFirst,
+		navigateToLast,
+		navigateByPage
 	};
 }
 

@@ -42,8 +42,8 @@
 			if (event.ctrlKey || event.metaKey) {
 				gridState.selectRow(rowId, 'toggle');
 			} else if (event.shiftKey) {
-				// TODO: Range selection
-				gridState.selectRow(rowId, 'add');
+				// Range selection from anchor row to this row
+				gridState.selectRange(rowId);
 			} else {
 				gridState.selectRow(rowId, 'set');
 			}

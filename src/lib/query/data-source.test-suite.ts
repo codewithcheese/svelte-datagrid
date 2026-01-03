@@ -455,7 +455,7 @@ export function createDataSourceTests<T extends TestRow>(config: DataSourceTestC
 
 			test('updates an existing row', async () => {
 				const result = await dataSource.mutate([
-					{ type: 'update', rowId: 1, data: { name: 'Alicia' } }
+					{ type: 'update', rowId: 1, data: { name: 'Alicia' } as Partial<T> }
 				]);
 
 				expect(result.success).toBe(true);

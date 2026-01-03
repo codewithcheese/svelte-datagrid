@@ -31,8 +31,14 @@
 ### Data Sources
 - Grid uses `DataSource` interface for data fetching
 - `LocalDataSource` - in-memory, no backend needed
-- `PgLiteDataSource` - PostgreSQL via PgLite (for testing)
+- `PostgresDataSource` - works with any Postgres client (pg, PgLite, Neon, etc.)
 - See `src/lib/query/` for the query module
+
+### Grid State
+- Selection: `selectRow()`, `selectRange()`, `selectAll()`, `clearSelection()`
+- Navigation: `navigateRow()`, `navigateToFirst()`, `navigateToLast()`, `navigateByPage()`
+- Column visibility: `setColumnVisibility()`
+- See `src/lib/state/grid-state.svelte.ts` for full API
 
 ## Key Files
 

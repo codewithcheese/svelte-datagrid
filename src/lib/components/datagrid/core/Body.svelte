@@ -33,6 +33,59 @@
 		const newScrollTop = touchStartScrollTop + deltaY;
 		gridState.setScroll(newScrollTop, gridState.scrollLeft);
 	}
+
+	function handleKeyDown(event: KeyboardEvent) {
+		if (!options.selectable) return;
+
+		const extendSelection = event.shiftKey;
+		let handled = false;
+
+		switch (event.key) {
+			case 'ArrowDown':
+				gridState.navigateRow(1, true, extendSelection);
+				handled = true;
+				break;
+			case 'ArrowUp':
+				gridState.navigateRow(-1, true, extendSelection);
+				handled = true;
+				break;
+			case 'Home':
+				if (event.ctrlKey) {
+					gridState.navigateToFirst(true);
+					handled = true;
+				}
+				break;
+			case 'End':
+				if (event.ctrlKey) {
+					gridState.navigateToLast(true);
+					handled = true;
+				}
+				break;
+			case 'PageDown':
+				gridState.navigateByPage('down', true);
+				handled = true;
+				break;
+			case 'PageUp':
+				gridState.navigateByPage('up', true);
+				handled = true;
+				break;
+			case 'a':
+				if (event.ctrlKey || event.metaKey) {
+					gridState.selectAll();
+					handled = true;
+				}
+				break;
+			case 'Escape':
+				gridState.clearSelection();
+				handled = true;
+				break;
+		}
+
+		if (handled) {
+			event.preventDefault();
+			event.stopPropagation();
+		}
+	}
 </script>
 
 <div
@@ -41,7 +94,9 @@
 	onscroll={handleScroll}
 	ontouchstart={handleTouchStart}
 	ontouchmove={handleTouchMove}
+	onkeydown={handleKeyDown}
 	role="rowgroup"
+	tabindex={options.selectable ? 0 : -1}
 	data-testid="datagrid-body"
 >
 	<div
