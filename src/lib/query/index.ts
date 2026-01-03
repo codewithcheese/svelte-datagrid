@@ -12,13 +12,16 @@
  * const dataSource = createLocalDataSource(myData, 'id');
  * ```
  *
- * @example PostgreSQL via PgLite
+ * @example PostgreSQL (works with any client: pg, PgLite, Neon, etc.)
  * ```ts
- * import { PGlite } from '@electric-sql/pglite';
- * import { createPgLiteDataSource } from '$lib/query';
+ * import { Pool } from 'pg';
+ * import { createPostgresDataSource } from '$lib/query';
  *
- * const db = new PGlite();
- * const dataSource = createPgLiteDataSource({ db, table: 'users' });
+ * const pool = new Pool({ connectionString: '...' });
+ * const dataSource = createPostgresDataSource({
+ *   connection: pool,
+ *   table: 'users'
+ * });
  * ```
  */
 
@@ -74,15 +77,14 @@ export {
 	type SqlBuilderOptions
 } from './sql-builder.js';
 
-// PgLite data source
+// PostgreSQL data source (works with any Postgres client)
 export {
-	PgLiteDataSource,
-	createPgLiteDataSource,
-	initializePgLiteSchema,
-	seedPgLiteData,
-	type PgLiteDatabase,
-	type PgLiteDataSourceOptions
-} from './pglite-data-source.js';
+	PostgresDataSource,
+	createPostgresDataSource,
+	type PostgresConnection,
+	type PostgresConnectionWithExec,
+	type PostgresDataSourceOptions
+} from './postgres-data-source.js';
 
 // ============================================================================
 // Utility functions

@@ -22,10 +22,8 @@ export {
 	createLocalDataSource,
 	SqlBuilder,
 	createSqlBuilder,
-	PgLiteDataSource,
-	createPgLiteDataSource,
-	initializePgLiteSchema,
-	seedPgLiteData,
+	PostgresDataSource,
+	createPostgresDataSource,
 	// Utility functions
 	generateRequestId,
 	createQueryRequest,
@@ -65,6 +63,7 @@ export type {
 	LocalDataSourceOptions,
 	SqlQuery,
 	SqlBuilderOptions,
-	PgLiteDatabase,
-	PgLiteDataSourceOptions
+	PostgresConnection,
+	PostgresConnectionWithExec,
+	PostgresDataSourceOptions
 } from './query/index.js';

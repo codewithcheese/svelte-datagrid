@@ -95,32 +95,44 @@ const result = await dataSource.getRows({
 - Mutations (insert, update, delete)
 - Change subscriptions
 
-### PgLiteDataSource
+### PostgresDataSource
 
-PostgreSQL data source using PgLite (WebAssembly Postgres).
+Generic PostgreSQL data source that works with any Postgres client.
 
 ```typescript
-import { PGlite } from '@electric-sql/pglite';
-import { createPgLiteDataSource, initializePgLiteSchema, seedPgLiteData } from '$lib/query';
+import { createPostgresDataSource } from '$lib/query';
 
-// Create database
-const db = new PGlite();
+// Works with any client implementing PostgresConnection interface:
+// - node-postgres (pg)
+// - postgres.js
+// - PgLite (@electric-sql/pglite)
+// - Vercel Postgres
+// - Neon serverless
 
-// Initialize schema
-await initializePgLiteSchema(db, 'users', {
-  id: 'SERIAL PRIMARY KEY',
-  name: 'TEXT NOT NULL',
-  age: 'INTEGER'
+// Example with node-postgres
+import { Pool } from 'pg';
+const pool = new Pool({ connectionString: '...' });
+const dataSource = createPostgresDataSource({
+  connection: pool,
+  table: 'users',
+  idColumn: 'id'
 });
 
-// Seed data
-await seedPgLiteData(db, 'users', [
-  { name: 'Alice', age: 30 },
-  { name: 'Bob', age: 25 }
-]);
+// Example with PgLite (in-browser/testing)
+import { PGlite } from '@electric-sql/pglite';
+const db = new PGlite();
+const dataSource = createPostgresDataSource({
+  connection: db,
+  table: 'users'
+});
+```
 
-// Create data source
-const dataSource = createPgLiteDataSource({ db, table: 'users' });
+The `PostgresConnection` interface is minimal:
+
+```typescript
+interface PostgresConnection {
+  query<T>(sql: string, params?: unknown[]): Promise<{ rows: T[] }>;
+}
 ```
 
 ## Filter Expressions

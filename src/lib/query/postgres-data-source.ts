@@ -1,10 +1,13 @@
 /**
- * PgLite Data Source - PostgreSQL adapter using PgLite (WebAssembly PostgreSQL)
+ * PostgreSQL Data Source - Generic PostgreSQL adapter
  *
- * PgLite allows running a full PostgreSQL instance in the browser or Node.js.
- * This adapter translates Grid Query Model requests to SQL and executes them.
- *
- * @see https://github.com/electric-sql/pglite
+ * Works with any PostgreSQL client that implements the PostgresConnection interface:
+ * - node-postgres (pg)
+ * - postgres.js
+ * - PgLite (@electric-sql/pglite)
+ * - Vercel Postgres
+ * - Neon serverless
+ * - Any other client with query(sql, params) support
  */
 
 import type {
@@ -21,38 +24,45 @@ import type {
 import { SqlBuilder, type SqlBuilderOptions } from './sql-builder.js';
 
 /**
- * Type definition for PgLite database instance.
- * We use a minimal interface to avoid hard dependency on @electric-sql/pglite.
+ * Minimal interface for PostgreSQL connections.
+ * Any Postgres client that implements this can be used.
  */
-export interface PgLiteDatabase {
+export interface PostgresConnection {
 	query<T = Record<string, unknown>>(
 		sql: string,
 		params?: unknown[]
 	): Promise<{ rows: T[] }>;
-	exec(sql: string): Promise<void>;
 }
 
-/** Options for PgLiteDataSource */
-export interface PgLiteDataSourceOptions extends SqlBuilderOptions {
-	/** PgLite database instance */
-	db: PgLiteDatabase;
+/**
+ * Extended interface for connections that support DDL/exec.
+ * Optional - only needed for schema initialization helpers.
+ */
+export interface PostgresConnectionWithExec extends PostgresConnection {
+	exec?(sql: string): Promise<void>;
+}
+
+/** Options for PostgresDataSource */
+export interface PostgresDataSourceOptions extends SqlBuilderOptions {
+	/** PostgreSQL connection/client */
+	connection: PostgresConnection;
 	/** Enable query logging */
 	debug?: boolean;
 }
 
 /**
- * PostgreSQL data source using PgLite.
+ * Generic PostgreSQL data source.
  * Provides full SQL capabilities including joins, aggregations, etc.
  */
-export class PgLiteDataSource<TRow extends Record<string, unknown>>
+export class PostgresDataSource<TRow extends Record<string, unknown>>
 	implements MutableDataSource<TRow>
 {
-	readonly name = 'PgLiteDataSource';
+	readonly name = 'PostgresDataSource';
 
 	readonly capabilities: DataSourceCapabilities = {
 		pagination: {
 			offset: true,
-			cursor: true, // Can implement with keyset pagination
+			cursor: true,
 			range: true
 		},
 		sort: {
@@ -90,22 +100,22 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 		},
 		search: {
 			enabled: true,
-			fullText: true // PostgreSQL has full-text search
+			fullText: true
 		},
 		rowCount: true,
-		cancellation: false, // PgLite doesn't support query cancellation yet
+		cancellation: false,
 		streaming: false
 	};
 
-	private readonly db: PgLiteDatabase;
+	private readonly connection: PostgresConnection;
 	private readonly sqlBuilder: SqlBuilder;
 	private readonly debug: boolean;
 	private readonly table: string;
 	private readonly idColumn: string;
 	private subscribers: Set<(event: DataChangeEvent<TRow>) => void> = new Set();
 
-	constructor(options: PgLiteDataSourceOptions) {
-		this.db = options.db;
+	constructor(options: PostgresDataSourceOptions) {
+		this.connection = options.connection;
 		this.sqlBuilder = new SqlBuilder(options);
 		this.debug = options.debug ?? false;
 		this.table = options.schema
@@ -125,7 +135,7 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 			const query = this.sqlBuilder.buildSelect(request);
 			this.logQuery('SELECT', query.sql, query.params);
 
-			const result = await this.db.query<TRow>(query.sql, query.params);
+			const result = await this.connection.query<TRow>(query.sql, query.params);
 
 			// Get total count if requested
 			let rowCount: number | undefined;
@@ -133,7 +143,7 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 				const countQuery = this.sqlBuilder.buildCount(request);
 				this.logQuery('COUNT', countQuery.sql, countQuery.params);
 
-				const countResult = await this.db.query<{ count: string }>(
+				const countResult = await this.connection.query<{ count: string }>(
 					countQuery.sql,
 					countQuery.params
 				);
@@ -192,7 +202,7 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 			const query = this.sqlBuilder.buildDistinct(field, filter);
 			this.logQuery('DISTINCT', query.sql, query.params);
 
-			const result = await this.db.query<Record<string, unknown>>(
+			const result = await this.connection.query<Record<string, unknown>>(
 				query.sql,
 				query.params
 			);
@@ -281,7 +291,7 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 
 		this.logQuery('INSERT', sql, values);
 
-		const result = await this.db.query<Record<string, unknown>>(sql, values);
+		const result = await this.connection.query<Record<string, unknown>>(sql, values);
 		return result.rows[0][this.idColumn] as string | number;
 	}
 
@@ -300,7 +310,7 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 
 		this.logQuery('UPDATE', sql, [...values, rowId]);
 
-		await this.db.query(sql, [...values, rowId]);
+		await this.connection.query(sql, [...values, rowId]);
 	}
 
 	private async deleteRow(rowId: string | number): Promise<void> {
@@ -308,7 +318,7 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 
 		this.logQuery('DELETE', sql, [rowId]);
 
-		await this.db.query(sql, [rowId]);
+		await this.connection.query(sql, [rowId]);
 	}
 
 	// =========================================================================
@@ -322,60 +332,60 @@ export class PgLiteDataSource<TRow extends Record<string, unknown>>
 	}
 
 	private isRetryable(error: unknown): boolean {
-		// Could check for transient errors, connection issues, etc.
+		// Check for transient errors like connection issues
+		if (error instanceof Error) {
+			const message = error.message.toLowerCase();
+			return (
+				message.includes('connection') ||
+				message.includes('timeout') ||
+				message.includes('temporarily unavailable')
+			);
+		}
 		return false;
 	}
 
 	private logQuery(type: string, sql: string, params: unknown[]): void {
 		if (this.debug) {
-			console.log(`[PgLite ${type}]`, sql, params);
+			console.log(`[PostgresDataSource ${type}]`, sql, params);
 		}
 	}
 
 	private logError(message: string, error: unknown): void {
 		if (this.debug) {
-			console.error(`[PgLite ERROR] ${message}:`, error);
+			console.error(`[PostgresDataSource ERROR] ${message}:`, error);
 		}
 	}
 }
 
 /**
- * Create a PgLite data source for a table.
+ * Create a PostgreSQL data source.
+ *
+ * @example With node-postgres (pg)
+ * ```ts
+ * import { Pool } from 'pg';
+ * import { createPostgresDataSource } from '$lib/query';
+ *
+ * const pool = new Pool({ connectionString: '...' });
+ * const dataSource = createPostgresDataSource({
+ *   connection: pool,
+ *   table: 'users'
+ * });
+ * ```
+ *
+ * @example With PgLite
+ * ```ts
+ * import { PGlite } from '@electric-sql/pglite';
+ * import { createPostgresDataSource } from '$lib/query';
+ *
+ * const db = new PGlite();
+ * const dataSource = createPostgresDataSource({
+ *   connection: db,
+ *   table: 'users'
+ * });
+ * ```
  */
-export function createPgLiteDataSource<TRow extends Record<string, unknown>>(
-	options: PgLiteDataSourceOptions
-): PgLiteDataSource<TRow> {
-	return new PgLiteDataSource(options);
-}
-
-/**
- * Helper to initialize a PgLite database with a schema.
- * Useful for testing.
- */
-export async function initializePgLiteSchema(
-	db: PgLiteDatabase,
-	schema: string
-): Promise<void> {
-	await db.exec(schema);
-}
-
-/**
- * Helper to seed a PgLite database with test data.
- */
-export async function seedPgLiteData<TRow extends Record<string, unknown>>(
-	db: PgLiteDatabase,
-	table: string,
-	data: TRow[]
-): Promise<void> {
-	if (data.length === 0) return;
-
-	const columns = Object.keys(data[0]);
-	const columnList = columns.map((c) => `"${c}"`).join(', ');
-
-	for (const row of data) {
-		const values = columns.map((c) => row[c]);
-		const placeholders = columns.map((_, i) => `$${i + 1}`).join(', ');
-		const sql = `INSERT INTO "${table}" (${columnList}) VALUES (${placeholders})`;
-		await db.query(sql, values);
-	}
+export function createPostgresDataSource<TRow extends Record<string, unknown>>(
+	options: PostgresDataSourceOptions
+): PostgresDataSource<TRow> {
+	return new PostgresDataSource(options);
 }

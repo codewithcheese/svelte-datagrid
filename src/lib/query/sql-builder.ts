@@ -173,14 +173,19 @@ export class SqlBuilder {
 		const column = this.mapColumn(field);
 		let sql = `SELECT DISTINCT "${column}" FROM ${this.table}`;
 
+		const whereClauses: string[] = [];
+
 		if (filter) {
 			const filterSql = this.buildFilterExpression(filter, nextParam);
 			if (filterSql) {
-				sql += ` WHERE ${filterSql}`;
+				whereClauses.push(filterSql);
 			}
 		}
 
-		sql += ` WHERE "${column}" IS NOT NULL ORDER BY "${column}"`;
+		// Always exclude nulls from distinct values
+		whereClauses.push(`"${column}" IS NOT NULL`);
+
+		sql += ` WHERE ${whereClauses.join(' AND ')} ORDER BY "${column}"`;
 
 		return { sql, params };
 	}
