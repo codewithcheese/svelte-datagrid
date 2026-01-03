@@ -87,8 +87,8 @@
 		typeof selectable === 'string' ? selectable : selectable ? 'single' : 'none'
 	);
 
-	// Create grid state - use $derived for reactive options
-	const gridStateOptions = $derived({
+	// Create grid state once with initial values
+	const gridState = createGridState<TData>({
 		data,
 		columns: columns as ColumnDef<TData>[],
 		rowHeight,
@@ -114,8 +114,6 @@
 		}
 	});
 
-	const gridState = createGridState<TData>(gridStateOptions);
-
 	// Provide grid state to child components
 	setContext('datagrid', gridState);
 
@@ -131,13 +129,23 @@
 		get onrowclick() { return onrowclick; }
 	});
 
-	// Sync external data/columns changes
+	// Track previous values to avoid unnecessary updates
+	let prevData: TData[] | undefined;
+	let prevColumns: ColumnDef<TData, any>[] | undefined;
+
+	// Sync external data/columns changes (skip initial)
 	$effect(() => {
-		gridState.updateData(data);
+		if (prevData !== undefined && data !== prevData) {
+			gridState.updateData(data);
+		}
+		prevData = data;
 	});
 
 	$effect(() => {
-		gridState.updateColumns(columns as ColumnDef<TData>[]);
+		if (prevColumns !== undefined && columns !== prevColumns) {
+			gridState.updateColumns(columns as ColumnDef<TData>[]);
+		}
+		prevColumns = columns;
 	});
 
 	// Container element reference
