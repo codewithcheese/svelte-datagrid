@@ -1,5 +1,15 @@
 import type { ColumnDef, SortState, FilterState, SelectionMode, FilterOperator } from '../types/index.js';
 import { defaultGetRowId, type GetRowId } from '../types/index.js';
+import type { MutableDataSource, RowMutation, DataSource } from '../query/types.js';
+
+/**
+ * Type guard to check if a DataSource implements MutableDataSource
+ */
+export function isMutableDataSource<TRow>(
+	ds: DataSource<TRow> | MutableDataSource<TRow> | undefined
+): ds is MutableDataSource<TRow> {
+	return ds !== undefined && typeof (ds as MutableDataSource<TRow>).mutate === 'function';
+}
 
 /**
  * Edit state for a cell being edited.
@@ -15,6 +25,8 @@ export interface EditState {
 	originalValue: unknown;
 	/** Validation error message, if any */
 	error?: string;
+	/** Whether the edit is currently being saved to DataSource */
+	saving?: boolean;
 }
 
 /**
@@ -43,6 +55,16 @@ export interface GridOptions<TData> {
 	onCellEdit?: (rowId: string | number, columnKey: string, newValue: unknown, oldValue: unknown) => void;
 	/** Callback to validate cell value before commit */
 	onCellValidate?: (rowId: string | number, columnKey: string, value: unknown) => string | null;
+	/**
+	 * DataSource for auto-saving edits.
+	 * When provided and is a MutableDataSource, edits will be persisted automatically.
+	 */
+	dataSource?: DataSource<TData> | MutableDataSource<TData>;
+	/**
+	 * Whether to automatically save edits through the DataSource.
+	 * Default: true when dataSource is a MutableDataSource
+	 */
+	autoSave?: boolean;
 }
 
 /**
@@ -636,10 +658,15 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 
 	/**
 	 * Commit the current edit.
-	 * Returns true if commit was successful, false if validation failed or no edit in progress.
+	 * Returns a promise that resolves to true if commit was successful,
+	 * false if validation failed or no edit in progress.
+	 *
+	 * When a MutableDataSource is configured with autoSave, this will
+	 * persist the change through the DataSource before completing.
 	 */
-	function commitEdit(): boolean {
+	async function commitEdit(): Promise<boolean> {
 		if (!editState) return false;
+		if (editState.saving) return false; // Already saving
 
 		// Validate before commit
 		const error = options.onCellValidate?.(editState.rowId, editState.columnKey, editState.value);
@@ -650,10 +677,61 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 
 		const { rowId, columnKey, value, originalValue } = editState;
 
-		// Only call callback if value changed
-		if (value !== originalValue) {
-			options.onCellEdit?.(rowId, columnKey, value, originalValue);
+		// Skip if value hasn't changed
+		if (value === originalValue) {
+			editState = null;
+			return true;
 		}
+
+		// Check if we should auto-save through DataSource
+		const mutableDataSource = options.autoSave !== false && isMutableDataSource(options.dataSource)
+			? options.dataSource
+			: null;
+
+		if (mutableDataSource) {
+			// Set saving state
+			editState = { ...editState, saving: true, error: undefined };
+
+			try {
+				const mutation: RowMutation<TData> = {
+					type: 'update',
+					rowId,
+					data: { [columnKey]: value } as Partial<TData>
+				};
+
+				const result = await mutableDataSource.mutate([mutation]);
+
+				if (!result.success) {
+					// Mutation failed - show error and keep edit mode open
+					editState = {
+						...editState,
+						saving: false,
+						error: result.error.message || 'Failed to save changes'
+					};
+					return false;
+				}
+
+				// Success - update local data
+				const rowIndex = data.findIndex((row, i) => getRowId(row, i) === rowId);
+				if (rowIndex >= 0) {
+					const updatedRow = { ...data[rowIndex], [columnKey]: value };
+					const newData = [...data];
+					newData[rowIndex] = updatedRow;
+					data = newData;
+				}
+			} catch (err) {
+				// Unexpected error
+				editState = {
+					...editState,
+					saving: false,
+					error: err instanceof Error ? err.message : 'Failed to save changes'
+				};
+				return false;
+			}
+		}
+
+		// Call the edit callback (for notification purposes)
+		options.onCellEdit?.(rowId, columnKey, value, originalValue);
 
 		editState = null;
 		return true;

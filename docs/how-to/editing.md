@@ -31,6 +31,60 @@ With editing enabled:
 - Press **Escape** to cancel editing
 - Press **F2** to edit the focused cell (Excel-like)
 
+## Auto-Save with DataSource
+
+When using a `MutableDataSource` (like `LocalDataSource`), the grid can automatically persist edits:
+
+```svelte
+<script>
+  import { DataGrid, createLocalDataSource } from 'svelte-datagrid';
+
+  let data = $state([
+    { id: 1, name: 'Alice', email: 'alice@example.com' },
+    { id: 2, name: 'Bob', email: 'bob@example.com' }
+  ]);
+
+  // Create a mutable data source
+  const dataSource = createLocalDataSource(data, 'id');
+
+  const columns = [
+    { key: 'id', header: 'ID', width: 60, editable: false },
+    { key: 'name', header: 'Name', width: 150 },
+    { key: 'email', header: 'Email', width: 200 }
+  ];
+</script>
+
+<DataGrid
+  {data}
+  {columns}
+  {dataSource}
+  editable
+  getRowId={(row) => row.id}
+/>
+```
+
+With auto-save:
+- Edits are automatically persisted through the DataSource
+- A spinner shows while saving
+- Errors from the DataSource are displayed in the cell
+- The cell remains editable if saving fails
+- The `oncelledit` callback is still called for notification
+
+### Disabling Auto-Save
+
+Set `autoSave={false}` to handle persistence manually:
+
+```svelte
+<DataGrid
+  {data}
+  {columns}
+  {dataSource}
+  editable
+  autoSave={false}
+  oncelledit={handleEdit}
+/>
+```
+
 ## Handling Edit Events
 
 Use `oncelledit` to respond when a cell value changes:

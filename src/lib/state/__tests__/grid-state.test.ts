@@ -5,7 +5,7 @@
  * Svelte's reactive system and is tested in browser tests instead.
  */
 
-import { describe, test, expect } from 'vitest';
+import { describe, test, expect, vi } from 'vitest';
 import { createGridState, type GridOptions } from '../grid-state.svelte.js';
 
 interface TestRow {
@@ -594,18 +594,18 @@ describe('Grid State', () => {
 			expect(state.editState?.error).toBe('Name must be at least 2 characters');
 		});
 
-		test('commitEdit clears edit state on success', () => {
+		test('commitEdit clears edit state on success', async () => {
 			const state = createTestGridState();
 
 			state.startEdit(1, 'name');
 			state.setEditValue('New Name');
-			const result = state.commitEdit();
+			const result = await state.commitEdit();
 
 			expect(result).toBe(true);
 			expect(state.editState).toBeNull();
 		});
 
-		test('commitEdit calls onCellEdit callback when value changed', () => {
+		test('commitEdit calls onCellEdit callback when value changed', async () => {
 			let callbackCalled = false;
 			let callbackArgs: { rowId: any; columnKey: any; newValue: any; oldValue: any } | null = null;
 
@@ -622,7 +622,7 @@ describe('Grid State', () => {
 
 			state.startEdit(1, 'name');
 			state.setEditValue('New Name');
-			state.commitEdit();
+			await state.commitEdit();
 
 			expect(callbackCalled).toBe(true);
 			expect(callbackArgs?.rowId).toBe(1);
@@ -631,7 +631,7 @@ describe('Grid State', () => {
 			expect(callbackArgs?.oldValue).toBe('Alice');
 		});
 
-		test('commitEdit does not call onCellEdit when value unchanged', () => {
+		test('commitEdit does not call onCellEdit when value unchanged', async () => {
 			let callbackCalled = false;
 
 			const state = createGridState({
@@ -646,12 +646,12 @@ describe('Grid State', () => {
 
 			state.startEdit(1, 'name');
 			// Don't change the value
-			state.commitEdit();
+			await state.commitEdit();
 
 			expect(callbackCalled).toBe(false);
 		});
 
-		test('commitEdit returns false on validation error', () => {
+		test('commitEdit returns false on validation error', async () => {
 			const state = createGridState({
 				data: testData,
 				columns: testColumns,
@@ -665,17 +665,17 @@ describe('Grid State', () => {
 
 			state.startEdit(1, 'name');
 			state.setEditValue('A'); // Too short
-			const result = state.commitEdit();
+			const result = await state.commitEdit();
 
 			expect(result).toBe(false);
 			expect(state.editState).not.toBeNull(); // Edit state should remain
 			expect(state.editState?.error).toBe('Too short');
 		});
 
-		test('commitEdit returns false when no edit in progress', () => {
+		test('commitEdit returns false when no edit in progress', async () => {
 			const state = createTestGridState();
 
-			const result = state.commitEdit();
+			const result = await state.commitEdit();
 
 			expect(result).toBe(false);
 		});
@@ -733,6 +733,161 @@ describe('Grid State', () => {
 				value: 'Alice',
 				originalValue: 'Alice',
 				error: undefined
+			});
+		});
+
+		describe('with DataSource auto-save', () => {
+			test('auto-saves through MutableDataSource on commit', async () => {
+				let mutationCalled = false;
+				let mutationData: any = null;
+
+				const mockDataSource = {
+					name: 'MockDataSource',
+					capabilities: {
+						pagination: { offset: true },
+						sort: { enabled: true },
+						filter: { enabled: true },
+						grouping: { enabled: false },
+						search: { enabled: false },
+						rowCount: true,
+						cancellation: false,
+						streaming: false
+					},
+					getRows: vi.fn(),
+					mutate: vi.fn(async (mutations: any[]) => {
+						mutationCalled = true;
+						mutationData = mutations[0];
+						return { success: true, data: [1] };
+					})
+				};
+
+				const state = createGridState({
+					data: testData,
+					columns: testColumns,
+					getRowId: (row) => row.id,
+					selectionMode: 'multiple',
+					dataSource: mockDataSource
+				});
+
+				state.startEdit(1, 'name');
+				state.setEditValue('Updated Name');
+				const result = await state.commitEdit();
+
+				expect(result).toBe(true);
+				expect(mutationCalled).toBe(true);
+				expect(mutationData).toEqual({
+					type: 'update',
+					rowId: 1,
+					data: { name: 'Updated Name' }
+				});
+			});
+
+			test('shows error when DataSource mutation fails', async () => {
+				const mockDataSource = {
+					name: 'MockDataSource',
+					capabilities: {
+						pagination: { offset: true },
+						sort: { enabled: true },
+						filter: { enabled: true },
+						grouping: { enabled: false },
+						search: { enabled: false },
+						rowCount: true,
+						cancellation: false,
+						streaming: false
+					},
+					getRows: vi.fn(),
+					mutate: vi.fn(async () => ({
+						success: false,
+						error: { code: 'UPDATE_FAILED', message: 'Database error' }
+					}))
+				};
+
+				const state = createGridState({
+					data: testData,
+					columns: testColumns,
+					getRowId: (row) => row.id,
+					selectionMode: 'multiple',
+					dataSource: mockDataSource
+				});
+
+				state.startEdit(1, 'name');
+				state.setEditValue('Updated Name');
+				const result = await state.commitEdit();
+
+				expect(result).toBe(false);
+				expect(state.editState).not.toBeNull();
+				expect(state.editState?.error).toBe('Database error');
+				expect(state.editState?.saving).toBe(false);
+			});
+
+			test('does not auto-save when autoSave is false', async () => {
+				const mockDataSource = {
+					name: 'MockDataSource',
+					capabilities: {
+						pagination: { offset: true },
+						sort: { enabled: true },
+						filter: { enabled: true },
+						grouping: { enabled: false },
+						search: { enabled: false },
+						rowCount: true,
+						cancellation: false,
+						streaming: false
+					},
+					getRows: vi.fn(),
+					mutate: vi.fn()
+				};
+
+				const state = createGridState({
+					data: testData,
+					columns: testColumns,
+					getRowId: (row) => row.id,
+					selectionMode: 'multiple',
+					dataSource: mockDataSource,
+					autoSave: false
+				});
+
+				state.startEdit(1, 'name');
+				state.setEditValue('Updated Name');
+				await state.commitEdit();
+
+				expect(mockDataSource.mutate).not.toHaveBeenCalled();
+			});
+
+			test('does not auto-save when DataSource is not mutable', async () => {
+				// DataSource without mutate method
+				const mockDataSource = {
+					name: 'ReadOnlyDataSource',
+					capabilities: {
+						pagination: { offset: true },
+						sort: { enabled: true },
+						filter: { enabled: true },
+						grouping: { enabled: false },
+						search: { enabled: false },
+						rowCount: true,
+						cancellation: false,
+						streaming: false
+					},
+					getRows: vi.fn()
+				};
+
+				let callbackCalled = false;
+				const state = createGridState({
+					data: testData,
+					columns: testColumns,
+					getRowId: (row) => row.id,
+					selectionMode: 'multiple',
+					dataSource: mockDataSource,
+					onCellEdit: () => {
+						callbackCalled = true;
+					}
+				});
+
+				state.startEdit(1, 'name');
+				state.setEditValue('Updated Name');
+				const result = await state.commitEdit();
+
+				expect(result).toBe(true);
+				expect(callbackCalled).toBe(true); // Falls back to callback
 			});
 		});
 	});

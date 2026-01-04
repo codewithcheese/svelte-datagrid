@@ -40,6 +40,29 @@ The main data grid component.
 | `sortable` | `boolean` | `true` | Enable column sorting (can be overridden per-column) |
 | `editable` | `boolean` | `false` | Enable cell editing (can be overridden per-column) |
 
+### DataSource Props
+
+| Prop | Type | Default | Description |
+|------|------|---------|-------------|
+| `dataSource` | `DataSource<TData> \| MutableDataSource<TData>` | `undefined` | DataSource for auto-save. When a MutableDataSource is provided, edits are automatically persisted. |
+| `autoSave` | `boolean` | `true` | Whether to auto-save edits through the DataSource. Set to `false` to handle persistence manually. |
+
+```svelte
+<script>
+  import { DataGrid, createLocalDataSource } from 'svelte-datagrid';
+
+  const dataSource = createLocalDataSource(data, 'id');
+</script>
+
+<DataGrid
+  {data}
+  {columns}
+  {dataSource}
+  editable
+  getRowId={(row) => row.id}
+/>
+```
+
 ### Identification Props
 
 | Prop | Type | Default | Description |

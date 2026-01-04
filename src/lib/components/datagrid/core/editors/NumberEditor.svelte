@@ -9,9 +9,10 @@
 		min?: number;
 		max?: number;
 		step?: number;
+		disabled?: boolean;
 	}
 
-	let { value, oncommit, oncancel, onchange, min, max, step = 1 }: Props = $props();
+	let { value, oncommit, oncancel, onchange, min, max, step = 1, disabled = false }: Props = $props();
 
 	let inputEl: HTMLInputElement | undefined = $state();
 	let inputValue = $state(value?.toString() ?? '');
@@ -82,6 +83,7 @@
 	oninput={handleInput}
 	onkeydown={handleKeyDown}
 	onblur={handleBlur}
+	{disabled}
 />
 
 <style>
@@ -104,5 +106,10 @@
 	.number-editor:focus {
 		border-color: var(--datagrid-edit-focus-color, #2563eb);
 		box-shadow: 0 0 0 2px var(--datagrid-edit-focus-ring, rgba(59, 130, 246, 0.3));
+	}
+
+	.number-editor:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
 	}
 </style>

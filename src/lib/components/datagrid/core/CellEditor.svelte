@@ -24,12 +24,15 @@
 		return 'text';
 	});
 
-	function handleCommit(newValue: unknown) {
+	async function handleCommit(newValue: unknown) {
 		gridState.setEditValue(newValue);
-		gridState.commitEdit();
+		// commitEdit is now async and handles DataSource mutations
+		await gridState.commitEdit();
 	}
 
 	function handleCancel() {
+		// Don't allow cancel while saving
+		if (gridState.editState?.saving) return;
 		gridState.cancelEdit();
 	}
 
@@ -38,11 +41,13 @@
 	}
 
 	const editError = $derived(gridState.editState?.error);
+	const isSaving = $derived(gridState.editState?.saving ?? false);
 </script>
 
 <div
 	class="datagrid-cell-editor"
 	class:has-error={!!editError}
+	class:is-saving={isSaving}
 	style="width: {width}px;"
 >
 	{#if editorType === 'number'}
@@ -51,6 +56,7 @@
 			oncommit={handleCommit}
 			oncancel={handleCancel}
 			onchange={handleChange}
+			disabled={isSaving}
 		/>
 	{:else}
 		<TextEditor
@@ -58,7 +64,14 @@
 			oncommit={handleCommit}
 			oncancel={handleCancel}
 			onchange={handleChange}
+			disabled={isSaving}
 		/>
+	{/if}
+
+	{#if isSaving}
+		<div class="editor-saving">
+			<span class="saving-spinner"></span>
+		</div>
 	{/if}
 
 	{#if editError}
@@ -80,6 +93,35 @@
 
 	.datagrid-cell-editor.has-error {
 		background: var(--datagrid-edit-error-bg, #fef2f2);
+	}
+
+	.datagrid-cell-editor.is-saving {
+		opacity: 0.7;
+		pointer-events: none;
+	}
+
+	.editor-saving {
+		position: absolute;
+		right: 8px;
+		top: 50%;
+		transform: translateY(-50%);
+		display: flex;
+		align-items: center;
+	}
+
+	.saving-spinner {
+		width: 14px;
+		height: 14px;
+		border: 2px solid var(--datagrid-border-color, #e0e0e0);
+		border-top-color: var(--datagrid-primary-color, #1976d2);
+		border-radius: 50%;
+		animation: editor-spin 0.8s linear infinite;
+	}
+
+	@keyframes editor-spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 
 	.editor-error {

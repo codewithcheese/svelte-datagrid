@@ -1,5 +1,6 @@
 <script lang="ts" module>
 	import type { ColumnDef, GridCellClickEvent, GridRowClickEvent, GridSortEvent, GridSelectionChangeEvent, GridCellEditEvent, SelectionMode } from '../../types/index.js';
+	import type { DataSource, MutableDataSource } from '../../query/types.js';
 
 	export interface DataGridProps<TData> {
 		/** Data rows to display */
@@ -40,6 +41,17 @@
 		emptyMessage?: string;
 		/** Error message to display */
 		errorMessage?: string;
+		/**
+		 * DataSource for automatic edit persistence.
+		 * When provided with a MutableDataSource, edits are automatically saved.
+		 */
+		dataSource?: DataSource<TData> | MutableDataSource<TData>;
+		/**
+		 * Whether to automatically save edits through the DataSource.
+		 * Default: true when dataSource is a MutableDataSource.
+		 * Set to false to disable auto-save and handle persistence manually via oncelledit.
+		 */
+		autoSave?: boolean;
 	}
 </script>
 
@@ -82,6 +94,8 @@
 		loading = false,
 		emptyMessage = 'No data to display',
 		errorMessage,
+		dataSource,
+		autoSave,
 		oncellclick,
 		onrowclick,
 		onsortchange,
@@ -107,6 +121,8 @@
 		overscan,
 		getRowId,
 		selectionMode,
+		dataSource,
+		autoSave,
 		onSortChange: (sort: any) => {
 			if (sort.length > 0) {
 				onsortchange?.({

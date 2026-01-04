@@ -6,9 +6,10 @@
 		oncommit: (value: string) => void;
 		oncancel: () => void;
 		onchange: (value: string) => void;
+		disabled?: boolean;
 	}
 
-	let { value, oncommit, oncancel, onchange }: Props = $props();
+	let { value, oncommit, oncancel, onchange, disabled = false }: Props = $props();
 
 	let inputEl: HTMLInputElement | undefined = $state();
 	let inputValue = $state(value);
@@ -56,6 +57,7 @@
 	oninput={handleInput}
 	onkeydown={handleKeyDown}
 	onblur={handleBlur}
+	{disabled}
 />
 
 <style>
@@ -76,5 +78,10 @@
 	.text-editor:focus {
 		border-color: var(--datagrid-edit-focus-color, #2563eb);
 		box-shadow: 0 0 0 2px var(--datagrid-edit-focus-ring, rgba(59, 130, 246, 0.3));
+	}
+
+	.text-editor:disabled {
+		opacity: 0.7;
+		cursor: not-allowed;
 	}
 </style>
