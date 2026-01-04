@@ -482,6 +482,90 @@ describe('Grid State', () => {
 			expect(state.containerWidth).toBe(800);
 			expect(state.containerHeight).toBe(600);
 		});
+
+		test('virtual scrolling renders rows when scrolled to middle of large dataset', async () => {
+			// Generate 100,000 rows
+			const largeData: TestRow[] = [];
+			for (let i = 0; i < 100000; i++) {
+				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
+			}
+
+			const state = createGridState({
+				data: largeData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				rowHeight: 40,
+				overscan: 5
+			});
+			await state.refresh();
+
+			// Set viewport size (400px = 10 visible rows)
+			state.setContainerSize(400, 400);
+
+			// Verify all data was loaded
+			expect(state.rows.length).toBe(100000);
+			expect(state.totalRowCount).toBe(100000);
+			expect(state.totalHeight).toBe(4000000); // 100,000 * 40
+
+			// Scroll to the middle of the dataset (row 50,000)
+			const scrollToRow = 50000;
+			const scrollTop = scrollToRow * 40; // 2,000,000px
+			state.setScroll(scrollTop, 0);
+
+			// Verify visible rows are calculated correctly
+			const { startIndex, endIndex } = state.visibleRange;
+
+			// startIndex should be around 50,000 - overscan (5) = 49,995
+			expect(startIndex).toBeGreaterThanOrEqual(49990);
+			expect(startIndex).toBeLessThanOrEqual(50000);
+
+			// endIndex should be startIndex + visible rows + overscan
+			expect(endIndex).toBeGreaterThan(startIndex);
+			expect(endIndex).toBeLessThanOrEqual(100000);
+
+			// CRITICAL: visibleRows should NOT be empty
+			expect(state.visibleRows.length).toBeGreaterThan(0);
+
+			// Verify the visible rows are actually around row 50,000
+			const firstVisibleRow = state.visibleRows[0];
+			expect(firstVisibleRow).toBeDefined();
+			expect(firstVisibleRow.id).toBeGreaterThanOrEqual(49990);
+			expect(firstVisibleRow.id).toBeLessThanOrEqual(50010);
+		});
+
+		test('virtual scrolling renders rows at the end of large dataset', async () => {
+			// Generate 100,000 rows
+			const largeData: TestRow[] = [];
+			for (let i = 0; i < 100000; i++) {
+				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
+			}
+
+			const state = createGridState({
+				data: largeData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				rowHeight: 40,
+				overscan: 5
+			});
+			await state.refresh();
+
+			state.setContainerSize(400, 400);
+
+			// Scroll to near the end (row 99,990)
+			const scrollToRow = 99990;
+			const scrollTop = scrollToRow * 40;
+			state.setScroll(scrollTop, 0);
+
+			// CRITICAL: visibleRows should NOT be empty
+			expect(state.visibleRows.length).toBeGreaterThan(0);
+
+			// Last visible row should be row 100,000 (id = 100000)
+			const lastVisibleRow = state.visibleRows[state.visibleRows.length - 1];
+			expect(lastVisibleRow).toBeDefined();
+			expect(lastVisibleRow.id).toBe(100000);
+		});
 	});
 
 	describe('focus management', () => {

@@ -285,19 +285,8 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		return scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
 	});
 
-	const visibleRange = $derived.by(() => {
-		const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-		const visibleCount = Math.ceil(containerHeight / rowHeight) + 2 * overscan;
-		const endIndex = Math.min(rows.length - 1, startIndex + visibleCount);
-		return { startIndex, endIndex, visibleCount };
-	});
-
-	const visibleRows = $derived(rows.slice(visibleRange.startIndex, Math.max(0, visibleRange.endIndex + 1)));
-
-	// Use getters instead of $derived for values that need synchronous access in tests
-	// The $derived doesn't update synchronously in non-browser test environments
-
-	const offsetY = $derived(visibleRange.startIndex * rowHeight);
+	// Note: visibleRange, visibleRows, and offsetY are computed inline in getters
+	// for synchronous access in tests. See the return object below.
 
 	// ===========================================
 	// Data Fetching (delegate to DataSource)
@@ -316,9 +305,9 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 				version: 1,
 				requestId,
 				pagination: {
-					type: 'range',
-					startRow: 0,
-					endRow: 10000 // For now, fetch all. Can optimize with windowing later.
+					type: 'offset',
+					offset: 0,
+					limit: Number.MAX_SAFE_INTEGER // Fetch all rows. Server-side windowing can be added later.
 				},
 				sort: toSortSpec(sortState),
 				filter: toFilterExpression(filterState, globalSearchTerm, columns),
@@ -976,13 +965,18 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		get scrollableWidth() {
 			return this.scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
 		},
-		get visibleRows() {
-			return visibleRows;
-		},
-		get visibleRange() {
-			return visibleRange;
-		},
 		// Compute on demand for synchronous access in tests
+		// The $derived values don't update synchronously in non-browser test environments
+		get visibleRange() {
+			const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+			const visibleCount = Math.ceil(containerHeight / rowHeight) + 2 * overscan;
+			const endIndex = Math.min(rows.length - 1, startIndex + visibleCount);
+			return { startIndex, endIndex, visibleCount };
+		},
+		get visibleRows() {
+			const range = this.visibleRange;
+			return rows.slice(range.startIndex, Math.max(0, range.endIndex + 1));
+		},
 		get totalHeight() {
 			return totalRowCount * rowHeight;
 		},
@@ -990,7 +984,7 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 			return visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);
 		},
 		get offsetY() {
-			return offsetY;
+			return this.visibleRange.startIndex * rowHeight;
 		},
 		get scrollTop() {
 			return scrollTop;
