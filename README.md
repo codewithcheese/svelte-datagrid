@@ -243,20 +243,20 @@ const pgDs = createPostgresDataSource({
 ## Development
 
 ```sh
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ## Testing
 
 ```sh
-npm run test        # Run unit tests
-npm run test:e2e    # Run end-to-end tests
+pnpm test        # Run unit tests
+pnpm test:e2e    # Run end-to-end tests
 ```
 
 ## Benchmarking
 
 ```sh
-npm run bench       # Run performance benchmarks
-npm run bench:ci    # Run benchmarks with regression detection
+pnpm bench       # Run performance benchmarks
+pnpm bench:ci    # Run benchmarks with regression detection
 ```

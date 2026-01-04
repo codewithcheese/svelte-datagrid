@@ -4,17 +4,17 @@
 
 **CRITICAL**: Before committing any changes, you MUST:
 
-1. **Run all tests**: `npm run test` - All tests must pass
-2. **Run type checking**: `npm run check` - No TypeScript errors
+1. **Run all tests**: `pnpm test` - All tests must pass
+2. **Run type checking**: `pnpm check` - No TypeScript errors
 3. **Update documentation** following the Diátaxis framework (see below)
 
 ## Key Commands
 
 | Command | Purpose |
 |---------|---------|
-| `npm run test` | Run all tests |
-| `npm run check` | TypeScript type checking |
-| `npm run dev` | Development server |
+| `pnpm test` | Run all tests |
+| `pnpm check` | TypeScript type checking |
+| `pnpm dev` | Development server |
 
 ## Architecture Patterns
 

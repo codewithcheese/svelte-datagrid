@@ -14,7 +14,7 @@ In this tutorial, you'll create your first Svelte DataGrid. By the end, you'll h
 In your terminal, install Svelte DataGrid:
 
 ```bash
-npm install svelte-datagrid
+pnpm add svelte-datagrid
 ```
 
 ## Step 2: Create sample data
@@ -97,7 +97,7 @@ Add the DataGrid component:
 
 > **Important**: The grid needs a container with a defined height. Virtualization requires knowing the available space.
 
-Run your dev server (`npm run dev`) and you should see your grid!
+Run your dev server (`pnpm dev`) and you should see your grid!
 
 ## Step 5: Enable sorting
 
