@@ -1,12 +1,29 @@
+/**
+ * Consolidated Grid State
+ *
+ * Key design:
+ * - DataSource is the single source of truth for data
+ * - Grid-state only manages presentation concerns
+ * - No duplicate filtering/sorting logic (delegated to DataSource)
+ * - Simpler, more focused responsibilities
+ */
+
 import type { ColumnDef, SortState, FilterState, SelectionMode, FilterOperator } from '../types/index.js';
 import { defaultGetRowId, type GetRowId } from '../types/index.js';
-import type { MutableDataSource, RowMutation, DataSource } from '../query/types.js';
+import type {
+	DataSource,
+	MutableDataSource,
+	GridQueryRequest,
+	FilterExpression,
+	SortSpec
+} from '../query/types.js';
+import { createLocalDataSource, type LocalDataSource } from '../query/local-data-source.js';
 
 /**
  * Type guard to check if a DataSource implements MutableDataSource
  */
 export function isMutableDataSource<TRow>(
-	ds: DataSource<TRow> | MutableDataSource<TRow> | undefined
+	ds: DataSource<TRow> | undefined
 ): ds is MutableDataSource<TRow> {
 	return ds !== undefined && typeof (ds as MutableDataSource<TRow>).mutate === 'function';
 }
@@ -33,38 +50,125 @@ export interface EditState {
  * Configuration options for creating a grid state instance.
  */
 export interface GridOptions<TData> {
-	/** Data rows to display */
-	data: TData[];
+	/**
+	 * Option 1: Provide raw data array (we create LocalDataSource internally)
+	 */
+	data?: TData[];
+
+	/**
+	 * Option 2: Provide your own DataSource (for server-side, custom backends)
+	 */
+	dataSource?: DataSource<TData>;
+
 	/** Column definitions */
 	columns: ColumnDef<TData>[];
+
 	/** Row height in pixels */
 	rowHeight?: number;
+
 	/** Header height in pixels */
 	headerHeight?: number;
+
 	/** Number of rows to render outside the viewport */
 	overscan?: number;
+
 	/** Function to get unique row ID */
 	getRowId?: GetRowId<TData>;
+
 	/** Selection mode */
 	selectionMode?: SelectionMode;
+
+	/** ID field for LocalDataSource (when using data prop) */
+	idField?: keyof TData;
+
 	/** Callback when sort changes */
 	onSortChange?: (sort: SortState[]) => void;
+
 	/** Callback when selection changes */
 	onSelectionChange?: (selected: Set<string | number>) => void;
+
 	/** Callback when cell edit is committed */
 	onCellEdit?: (rowId: string | number, columnKey: string, newValue: unknown, oldValue: unknown) => void;
+
 	/** Callback to validate cell value before commit */
 	onCellValidate?: (rowId: string | number, columnKey: string, value: unknown) => string | null;
-	/**
-	 * DataSource for auto-saving edits.
-	 * When provided and is a MutableDataSource, edits will be persisted automatically.
-	 */
-	dataSource?: DataSource<TData> | MutableDataSource<TData>;
-	/**
-	 * Whether to automatically save edits through the DataSource.
-	 * Default: true when dataSource is a MutableDataSource
-	 */
-	autoSave?: boolean;
+}
+
+/**
+ * Convert grid filter state to DataSource FilterExpression
+ */
+function toFilterExpression(
+	filters: FilterState[],
+	searchTerm: string,
+	columns: ColumnDef<any>[]
+): FilterExpression | undefined {
+	const conditions: FilterExpression[] = [];
+
+	// Column filters
+	for (const filter of filters) {
+		if (filter.value === null || filter.value === undefined || filter.value === '') continue;
+
+		conditions.push({
+			type: 'condition',
+			field: filter.columnKey,
+			operator:
+				filter.operator === 'eq'
+					? 'eq'
+					: filter.operator === 'contains'
+						? 'contains'
+						: filter.operator === 'startsWith'
+							? 'startsWith'
+							: filter.operator === 'gt'
+								? 'gt'
+								: filter.operator === 'lt'
+									? 'lt'
+									: filter.operator === 'gte'
+										? 'gte'
+										: filter.operator === 'lte'
+											? 'lte'
+											: 'contains',
+			value: filter.value
+		});
+	}
+
+	// Global search - creates OR across all filterable columns
+	if (searchTerm.trim()) {
+		const searchConditions: FilterExpression[] = columns
+			.filter((col) => col.filterable !== false)
+			.map((col) => ({
+				type: 'condition' as const,
+				field: col.key,
+				operator: 'contains' as const,
+				value: searchTerm.trim()
+			}));
+
+		if (searchConditions.length > 0) {
+			conditions.push({
+				type: 'group',
+				operator: 'or',
+				conditions: searchConditions
+			});
+		}
+	}
+
+	if (conditions.length === 0) return undefined;
+	if (conditions.length === 1) return conditions[0];
+
+	return {
+		type: 'group',
+		operator: 'and',
+		conditions
+	};
+}
+
+/**
+ * Convert grid sort state to DataSource SortSpec
+ */
+function toSortSpec(sorts: SortState[]): SortSpec[] {
+	return sorts.filter((s) => s.direction).map((s) => ({
+		field: s.columnKey,
+		direction: s.direction as 'asc' | 'desc'
+	}));
 }
 
 /**
@@ -81,72 +185,27 @@ function getColumnValue<TData>(row: TData, column: ColumnDef<TData>): unknown {
 }
 
 /**
- * Default comparison function for sorting.
- */
-function defaultCompare(a: unknown, b: unknown): number {
-	if (a === b) return 0;
-	if (a == null) return 1;
-	if (b == null) return -1;
-
-	if (typeof a === 'string' && typeof b === 'string') {
-		return a.localeCompare(b);
-	}
-
-	if (typeof a === 'number' && typeof b === 'number') {
-		return a - b;
-	}
-
-	if (a instanceof Date && b instanceof Date) {
-		return a.getTime() - b.getTime();
-	}
-
-	return String(a).localeCompare(String(b));
-}
-
-/**
- * Apply a filter to a value based on operator.
- */
-function applyFilter(value: unknown, filterValue: unknown, operator: FilterOperator): boolean {
-	if (filterValue === null || filterValue === undefined || filterValue === '') {
-		return true;
-	}
-
-	const strValue = String(value ?? '').toLowerCase();
-	const strFilter = String(filterValue).toLowerCase();
-
-	switch (operator) {
-		case 'eq':
-			return value === filterValue || strValue === strFilter;
-		case 'neq':
-			return value !== filterValue && strValue !== strFilter;
-		case 'gt':
-			return Number(value) > Number(filterValue);
-		case 'lt':
-			return Number(value) < Number(filterValue);
-		case 'gte':
-			return Number(value) >= Number(filterValue);
-		case 'lte':
-			return Number(value) <= Number(filterValue);
-		case 'contains':
-			return strValue.includes(strFilter);
-		case 'startsWith':
-			return strValue.startsWith(strFilter);
-		case 'endsWith':
-			return strValue.endsWith(strFilter);
-		default:
-			return true;
-	}
-}
-
-/**
  * Creates reactive grid state using Svelte 5 runes.
  * This is a factory function that returns an object with getters for reactive state
  * and methods for state mutations.
+ *
+ * The grid state now uses DataSource as the single source of truth for data.
+ * When you provide a `data` array, a LocalDataSource is created internally.
+ * When you provide a `dataSource`, it is used directly.
  */
-export function createGridState<TData>(options: GridOptions<TData>) {
-	// Core data state
-	let data = $state<TData[]>(options.data);
-	let columns = $state<ColumnDef<TData>[]>(options.columns);
+export function createGridState<TData extends Record<string, unknown>>(options: GridOptions<TData>) {
+	// Resolve DataSource - either use provided one or create from data
+	let internalDataSource: DataSource<TData>;
+	let localDataSource: LocalDataSource<TData> | null = null;
+
+	if (options.dataSource) {
+		internalDataSource = options.dataSource;
+	} else if (options.data) {
+		localDataSource = createLocalDataSource(options.data, options.idField);
+		internalDataSource = localDataSource;
+	} else {
+		throw new Error('Either data or dataSource must be provided');
+	}
 
 	// Configuration
 	const rowHeight = options.rowHeight ?? 40;
@@ -154,10 +213,14 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	const overscan = options.overscan ?? 5;
 	const getRowId = options.getRowId ?? defaultGetRowId;
 
-	// Sort state
-	let sortState = $state<SortState[]>([]);
+	// ===========================================
+	// Presentation State (grid-state owns these)
+	// ===========================================
 
-	// Filter state
+	let columns = $state<ColumnDef<TData>[]>(options.columns);
+
+	// Query state (what to ask DataSource)
+	let sortState = $state<SortState[]>([]);
 	let filterState = $state<FilterState[]>([]);
 	let globalSearchTerm = $state<string>('');
 
@@ -165,8 +228,8 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	let selectedIds = $state<Set<string | number>>(new Set());
 	let focusedRowId = $state<string | number | null>(null);
 	let focusedColumnKey = $state<string | null>(null);
-	let lastSelectedRowId = $state<string | number | null>(null); // For shift+click range selection
-	let focusedRowIndex = $state<number>(-1); // Track index for keyboard navigation
+	let focusedRowIndex = $state<number>(-1);
+	let lastSelectedRowId = $state<string | number | null>(null);
 
 	// Viewport state
 	let scrollTop = $state(0);
@@ -182,94 +245,119 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	// Edit state
 	let editState = $state<EditState | null>(null);
 
-	// Derived: Visible columns (respecting order and visibility)
+	// ===========================================
+	// Data State (from DataSource queries)
+	// ===========================================
+
+	let rows = $state<TData[]>([]);
+	let totalRowCount = $state<number>(0);
+	let isLoading = $state<boolean>(false);
+	let queryError = $state<string | null>(null);
+
+	// Request tracking
+	let currentRequestId = $state<string>('');
+
+	// ===========================================
+	// Derived State
+	// ===========================================
+
 	const visibleColumns = $derived.by(() => {
-		return columnOrder.filter((key) => !hiddenColumns.has(key)).map((key) => columns.find((c) => c.key === key)!);
+		return columnOrder
+			.filter((key) => !hiddenColumns.has(key))
+			.map((key) => columns.find((c) => c.key === key)!)
+			.filter(Boolean);
 	});
 
-	// Derived: Processed data (filtered, sorted)
-	const processedData = $derived.by(() => {
-		let result = [...data];
-
-		// Apply global search (across all searchable columns)
-		if (globalSearchTerm.trim()) {
-			const searchLower = globalSearchTerm.toLowerCase().trim();
-			result = result.filter((row) => {
-				// Search across all visible columns (or columns with filterable !== false)
-				for (const column of columns) {
-					if (column.filterable === false) continue;
-					const value = getColumnValue(row, column);
-					const strValue = String(value ?? '').toLowerCase();
-					if (strValue.includes(searchLower)) {
-						return true;
-					}
-				}
-				return false;
-			});
-		}
-
-		// Apply column-specific filters
-		for (const filter of filterState) {
-			const column = columns.find((c) => c.key === filter.columnKey);
-			if (!column) continue;
-
-			result = result.filter((row) => {
-				const value = getColumnValue(row, column);
-				if (column.filterFn) {
-					return column.filterFn(value as never, filter.value);
-				}
-				return applyFilter(value, filter.value, filter.operator);
-			});
-		}
-
-		// Apply sorting
-		if (sortState.length > 0) {
-			result.sort((a, b) => {
-				for (const sort of sortState) {
-					const column = columns.find((c) => c.key === sort.columnKey);
-					if (!column) continue;
-
-					const aVal = getColumnValue(a, column);
-					const bVal = getColumnValue(b, column);
-
-					const compareFn = column.sortFn ?? defaultCompare;
-					const comparison = compareFn(aVal as never, bVal as never);
-
-					if (comparison !== 0) {
-						return sort.direction === 'asc' ? comparison : -comparison;
-					}
-				}
-				return 0;
-			});
-		}
-
-		return result;
-	});
-
-	// Derived: Virtualization calculations
 	const visibleRange = $derived.by(() => {
 		const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
 		const visibleCount = Math.ceil(containerHeight / rowHeight) + 2 * overscan;
-		const endIndex = Math.min(processedData.length - 1, startIndex + visibleCount);
-
+		const endIndex = Math.min(rows.length - 1, startIndex + visibleCount);
 		return { startIndex, endIndex, visibleCount };
 	});
 
-	// Derived: Visible rows (sliced from processed data)
-	const visibleRows = $derived(processedData.slice(visibleRange.startIndex, Math.max(0, visibleRange.endIndex + 1)));
+	const visibleRows = $derived(rows.slice(visibleRange.startIndex, Math.max(0, visibleRange.endIndex + 1)));
 
-	// Derived: Total scroll height
-	const totalHeight = $derived(processedData.length * rowHeight);
+	// Use getters instead of $derived for values that need synchronous access in tests
+	// The $derived doesn't update synchronously in non-browser test environments
 
-	// Derived: Y offset for positioning visible rows
 	const offsetY = $derived(visibleRange.startIndex * rowHeight);
 
-	// Derived: Total width calculation
-	const totalWidth = $derived(
-		visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0)
-	);
+	// ===========================================
+	// Data Fetching (delegate to DataSource)
+	// ===========================================
 
+	let requestIdCounter = 0;
+
+	async function fetchData() {
+		const requestId = `req_${++requestIdCounter}`;
+		currentRequestId = requestId;
+		isLoading = true;
+		queryError = null;
+
+		try {
+			const request: GridQueryRequest = {
+				version: 1,
+				requestId,
+				pagination: {
+					type: 'range',
+					startRow: 0,
+					endRow: 10000 // For now, fetch all. Can optimize with windowing later.
+				},
+				sort: toSortSpec(sortState),
+				filter: toFilterExpression(filterState, globalSearchTerm, columns),
+				requires: { rowCount: true }
+			};
+
+			const result = await internalDataSource.getRows(request);
+
+			// Check if this is still the current request
+			if (currentRequestId !== requestId) return;
+
+			if (result.success) {
+				rows = result.data.rows;
+				totalRowCount = result.data.rowCount ?? result.data.rows.length;
+			} else {
+				queryError = result.error.message;
+				rows = [];
+				totalRowCount = 0;
+			}
+		} catch (err) {
+			if (currentRequestId !== requestId) return;
+			queryError = err instanceof Error ? err.message : 'Failed to fetch data';
+			rows = [];
+			totalRowCount = 0;
+		} finally {
+			if (currentRequestId === requestId) {
+				isLoading = false;
+			}
+		}
+	}
+
+	// Track the current fetch promise for awaiting in tests
+	let currentFetchPromise: Promise<void> = Promise.resolve();
+
+	// Fetch data when query state changes
+	$effect(() => {
+		// Track dependencies
+		sortState;
+		filterState;
+		globalSearchTerm;
+
+		currentFetchPromise = fetchData();
+	});
+
+	/**
+	 * Wait for any pending data fetch to complete.
+	 * Useful for testing when you need to ensure data is loaded.
+	 */
+	function waitForData(): Promise<void> {
+		return currentFetchPromise;
+	}
+
+	// ===========================================
 	// Actions
+	// ===========================================
+
 	function setSort(columnKey: string, direction: SortState['direction'], multiSort = false) {
 		if (!multiSort) {
 			sortState = direction ? [{ columnKey, direction }] : [];
@@ -332,6 +420,7 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		globalSearchTerm = '';
 	}
 
+	// Selection actions
 	function selectRow(rowId: string | number, mode: 'toggle' | 'add' | 'remove' | 'set' = 'toggle') {
 		const newSelected = new Set(selectedIds);
 
@@ -340,16 +429,12 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 				if (newSelected.has(rowId)) {
 					newSelected.delete(rowId);
 				} else {
-					if (options.selectionMode === 'single') {
-						newSelected.clear();
-					}
+					if (options.selectionMode === 'single') newSelected.clear();
 					newSelected.add(rowId);
 				}
 				break;
 			case 'add':
-				if (options.selectionMode === 'single') {
-					newSelected.clear();
-				}
+				if (options.selectionMode === 'single') newSelected.clear();
 				newSelected.add(rowId);
 				break;
 			case 'remove':
@@ -362,10 +447,9 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		}
 
 		selectedIds = newSelected;
-		lastSelectedRowId = rowId; // Track for range selection
+		lastSelectedRowId = rowId;
 
-		// Update focused row index
-		const idx = processedData.findIndex((row, i) => getRowId(row, i) === rowId);
+		const idx = rows.findIndex((row, i) => getRowId(row, i) === rowId);
 		if (idx >= 0) {
 			focusedRowIndex = idx;
 			focusedRowId = rowId;
@@ -374,10 +458,6 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		options.onSelectionChange?.(selectedIds);
 	}
 
-	/**
-	 * Select a range of rows from lastSelectedRowId to targetRowId.
-	 * Used for Shift+click selection.
-	 */
 	function selectRange(targetRowId: string | number) {
 		if (options.selectionMode !== 'multiple') {
 			selectRow(targetRowId, 'set');
@@ -385,13 +465,11 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		}
 
 		const anchorId = lastSelectedRowId ?? targetRowId;
-
-		// Find indices of anchor and target in processed data
 		let anchorIndex = -1;
 		let targetIndex = -1;
 
-		for (let i = 0; i < processedData.length; i++) {
-			const id = getRowId(processedData[i], i);
+		for (let i = 0; i < rows.length; i++) {
+			const id = getRowId(rows[i], i);
 			if (id === anchorId) anchorIndex = i;
 			if (id === targetRowId) targetIndex = i;
 			if (anchorIndex >= 0 && targetIndex >= 0) break;
@@ -402,27 +480,23 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 			return;
 		}
 
-		// Select all rows in range
 		const start = Math.min(anchorIndex, targetIndex);
 		const end = Math.max(anchorIndex, targetIndex);
 
 		const newSelected = new Set(selectedIds);
 		for (let i = start; i <= end; i++) {
-			const id = getRowId(processedData[i], i);
-			newSelected.add(id);
+			newSelected.add(getRowId(rows[i], i));
 		}
 
 		selectedIds = newSelected;
 		focusedRowIndex = targetIndex;
 		focusedRowId = targetRowId;
-		// Note: Don't update lastSelectedRowId here to maintain anchor point
-
 		options.onSelectionChange?.(selectedIds);
 	}
 
 	function selectAll() {
 		if (options.selectionMode !== 'multiple') return;
-		selectedIds = new Set(processedData.map((row, i) => getRowId(row, i)));
+		selectedIds = new Set(rows.map((row, i) => getRowId(row, i)));
 		options.onSelectionChange?.(selectedIds);
 	}
 
@@ -435,6 +509,7 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		return selectedIds.has(rowId);
 	}
 
+	// Column actions
 	function setColumnWidth(columnKey: string, width: number) {
 		const column = columns.find((c) => c.key === columnKey);
 		const minWidth = column?.minWidth ?? 50;
@@ -456,9 +531,13 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		hiddenColumns = newHidden;
 	}
 
+	// Viewport actions
 	function setScroll(top: number, left: number) {
-		scrollTop = Math.max(0, Math.min(top, Math.max(0, totalHeight - containerHeight)));
-		scrollLeft = Math.max(0, Math.min(left, Math.max(0, totalWidth - containerWidth)));
+		// Compute totals inline since we removed the $derived
+		const computedTotalHeight = totalRowCount * rowHeight;
+		const computedTotalWidth = visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);
+		scrollTop = Math.max(0, Math.min(top, Math.max(0, computedTotalHeight - containerHeight)));
+		scrollLeft = Math.max(0, Math.min(left, Math.max(0, computedTotalWidth - containerWidth)));
 	}
 
 	function setContainerSize(width: number, height: number) {
@@ -466,27 +545,10 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		containerHeight = height;
 	}
 
-	function updateData(newData: TData[]) {
-		data = newData;
-	}
-
-	function updateColumns(newColumns: ColumnDef<TData>[]) {
-		columns = newColumns;
-		// Update column order to include new columns
-		const newOrder = [...columnOrder];
-		for (const col of newColumns) {
-			if (!newOrder.includes(col.key)) {
-				newOrder.push(col.key);
-			}
-		}
-		columnOrder = newOrder.filter((key) => newColumns.some((c) => c.key === key));
-	}
-
 	function scrollToRow(index: number, align: 'start' | 'center' | 'end' | 'nearest' = 'start') {
-		const row = index;
-		if (row < 0 || row >= processedData.length) return;
+		if (index < 0 || index >= rows.length) return;
 
-		const rowTop = row * rowHeight;
+		const rowTop = index * rowHeight;
 		const rowBottom = rowTop + rowHeight;
 		const viewportTop = scrollTop;
 		const viewportBottom = scrollTop + containerHeight;
@@ -495,53 +557,36 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 
 		switch (align) {
 			case 'center':
-				targetScrollTop = row * rowHeight - containerHeight / 2 + rowHeight / 2;
+				targetScrollTop = index * rowHeight - containerHeight / 2 + rowHeight / 2;
 				break;
 			case 'end':
-				targetScrollTop = row * rowHeight - containerHeight + rowHeight;
+				targetScrollTop = index * rowHeight - containerHeight + rowHeight;
 				break;
 			case 'nearest':
-				// Only scroll if row is not fully visible
 				if (rowTop < viewportTop) {
-					targetScrollTop = rowTop; // Scroll up to show row at top
+					targetScrollTop = rowTop;
 				} else if (rowBottom > viewportBottom) {
-					targetScrollTop = rowBottom - containerHeight; // Scroll down to show row at bottom
+					targetScrollTop = rowBottom - containerHeight;
 				} else {
-					return; // Row is already visible, no scroll needed
+					return;
 				}
 				break;
 			default:
-				targetScrollTop = row * rowHeight;
+				targetScrollTop = index * rowHeight;
 		}
 
 		setScroll(targetScrollTop, scrollLeft);
 	}
 
-	function setFocus(rowId: string | number | null, columnKey: string | null) {
-		focusedRowId = rowId;
-		focusedColumnKey = columnKey;
-
-		if (rowId !== null) {
-			const idx = processedData.findIndex((row, i) => getRowId(row, i) === rowId);
-			if (idx >= 0) focusedRowIndex = idx;
-		}
-	}
-
-	/**
-	 * Navigate to a row by relative offset (for arrow key navigation).
-	 * Returns the new focused row ID or null if navigation not possible.
-	 */
-	function navigateRow(offset: number, select: boolean = false, extendSelection: boolean = false): string | number | null {
+	// Navigation
+	function navigateRow(offset: number, select = false, extendSelection = false): string | number | null {
 		const currentIndex = focusedRowIndex >= 0 ? focusedRowIndex : 0;
-		const newIndex = Math.max(0, Math.min(processedData.length - 1, currentIndex + offset));
+		const newIndex = Math.max(0, Math.min(rows.length - 1, currentIndex + offset));
 
-		if (newIndex === currentIndex && focusedRowIndex >= 0) {
-			return focusedRowId;
-		}
+		if (newIndex === currentIndex && focusedRowIndex >= 0) return focusedRowId;
+		if (rows.length === 0) return null;
 
-		if (processedData.length === 0) return null;
-
-		const newRow = processedData[newIndex];
+		const newRow = rows[newIndex];
 		const newRowId = getRowId(newRow, newIndex);
 
 		focusedRowIndex = newIndex;
@@ -555,73 +600,56 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 			}
 		}
 
-		// Ensure the row is visible
 		scrollToRow(newIndex, 'nearest');
-
 		return newRowId;
 	}
 
-	/**
-	 * Navigate to first row.
-	 */
-	function navigateToFirst(select: boolean = false): string | number | null {
-		if (processedData.length === 0) return null;
-
+	function navigateToFirst(select = false): string | number | null {
+		if (rows.length === 0) return null;
 		focusedRowIndex = 0;
-		focusedRowId = getRowId(processedData[0], 0);
-
-		if (select) {
-			selectRow(focusedRowId, 'set');
-		}
-
+		focusedRowId = getRowId(rows[0], 0);
+		if (select) selectRow(focusedRowId, 'set');
 		scrollToRow(0, 'start');
 		return focusedRowId;
 	}
 
-	/**
-	 * Navigate to last row.
-	 */
-	function navigateToLast(select: boolean = false): string | number | null {
-		if (processedData.length === 0) return null;
-
-		const lastIndex = processedData.length - 1;
+	function navigateToLast(select = false): string | number | null {
+		if (rows.length === 0) return null;
+		const lastIndex = rows.length - 1;
 		focusedRowIndex = lastIndex;
-		focusedRowId = getRowId(processedData[lastIndex], lastIndex);
-
-		if (select) {
-			selectRow(focusedRowId, 'set');
-		}
-
+		focusedRowId = getRowId(rows[lastIndex], lastIndex);
+		if (select) selectRow(focusedRowId, 'set');
 		scrollToRow(lastIndex, 'end');
 		return focusedRowId;
 	}
 
-	/**
-	 * Navigate by page (for Page Up/Down).
-	 */
-	function navigateByPage(direction: 'up' | 'down', select: boolean = false): string | number | null {
+	function navigateByPage(direction: 'up' | 'down', select = false): string | number | null {
 		const visibleRowCount = Math.floor(containerHeight / rowHeight);
 		const offset = direction === 'down' ? visibleRowCount : -visibleRowCount;
 		return navigateRow(offset, select);
 	}
 
-	// ==================== Edit Actions ====================
-
-	/**
-	 * Start editing a cell.
-	 */
-	function startEdit(rowId: string | number, columnKey: string): boolean {
-		// Find the column
-		const column = columns.find((c) => c.key === columnKey);
-		if (!column || column.editable === false) {
-			return false;
+	function setFocus(rowId: string | number | null, columnKey: string | null) {
+		focusedRowId = rowId;
+		focusedColumnKey = columnKey;
+		if (rowId !== null) {
+			const idx = rows.findIndex((row, i) => getRowId(row, i) === rowId);
+			if (idx >= 0) focusedRowIndex = idx;
 		}
+	}
 
-		// Find the row and get current value
-		const rowIndex = processedData.findIndex((row, i) => getRowId(row, i) === rowId);
+	// ===========================================
+	// Edit Actions (always via DataSource)
+	// ===========================================
+
+	function startEdit(rowId: string | number, columnKey: string): boolean {
+		const column = columns.find((c) => c.key === columnKey);
+		if (!column || column.editable === false) return false;
+
+		const rowIndex = rows.findIndex((row, i) => getRowId(row, i) === rowId);
 		if (rowIndex < 0) return false;
 
-		const row = processedData[rowIndex];
+		const row = rows[rowIndex];
 		const value = getColumnValue(row, column);
 
 		editState = {
@@ -632,7 +660,6 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 			error: undefined
 		};
 
-		// Focus on the cell
 		focusedRowId = rowId;
 		focusedColumnKey = columnKey;
 		focusedRowIndex = rowIndex;
@@ -640,35 +667,16 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		return true;
 	}
 
-	/**
-	 * Update the value in the current edit.
-	 */
 	function setEditValue(value: unknown): void {
 		if (!editState) return;
-
-		// Validate if validator provided
 		const error = options.onCellValidate?.(editState.rowId, editState.columnKey, value) ?? undefined;
-
-		editState = {
-			...editState,
-			value,
-			error
-		};
+		editState = { ...editState, value, error };
 	}
 
-	/**
-	 * Commit the current edit.
-	 * Returns a promise that resolves to true if commit was successful,
-	 * false if validation failed or no edit in progress.
-	 *
-	 * When a MutableDataSource is configured with autoSave, this will
-	 * persist the change through the DataSource before completing.
-	 */
 	async function commitEdit(): Promise<boolean> {
 		if (!editState) return false;
-		if (editState.saving) return false; // Already saving
+		if (editState.saving) return false;
 
-		// Validate before commit
 		const error = options.onCellValidate?.(editState.rowId, editState.columnKey, editState.value);
 		if (error) {
 			editState = { ...editState, error };
@@ -677,101 +685,121 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 
 		const { rowId, columnKey, value, originalValue } = editState;
 
-		// Skip if value hasn't changed
 		if (value === originalValue) {
 			editState = null;
 			return true;
 		}
 
-		// Check if we should auto-save through DataSource
-		const mutableDataSource = options.autoSave !== false && isMutableDataSource(options.dataSource)
-			? options.dataSource
-			: null;
-
-		if (mutableDataSource) {
-			// Set saving state
+		// Always try to use DataSource for persistence
+		if (isMutableDataSource(internalDataSource)) {
 			editState = { ...editState, saving: true, error: undefined };
 
 			try {
-				const mutation: RowMutation<TData> = {
-					type: 'update',
-					rowId,
-					data: { [columnKey]: value } as Partial<TData>
-				};
-
-				const result = await mutableDataSource.mutate([mutation]);
+				const result = await internalDataSource.mutate([
+					{
+						type: 'update',
+						rowId,
+						data: { [columnKey]: value } as Partial<TData>
+					}
+				]);
 
 				if (!result.success) {
-					// Mutation failed - show error and keep edit mode open
-					editState = {
-						...editState,
-						saving: false,
-						error: result.error.message || 'Failed to save changes'
-					};
+					editState = { ...editState, saving: false, error: result.error.message };
 					return false;
 				}
 
-				// Success - update local data
-				const rowIndex = data.findIndex((row, i) => getRowId(row, i) === rowId);
-				if (rowIndex >= 0) {
-					const updatedRow = { ...data[rowIndex], [columnKey]: value };
-					const newData = [...data];
-					newData[rowIndex] = updatedRow;
-					data = newData;
-				}
+				// Refresh data from DataSource
+				await fetchData();
 			} catch (err) {
-				// Unexpected error
-				editState = {
-					...editState,
-					saving: false,
-					error: err instanceof Error ? err.message : 'Failed to save changes'
-				};
+				editState = { ...editState, saving: false, error: err instanceof Error ? err.message : 'Save failed' };
 				return false;
 			}
 		}
 
-		// Call the edit callback (for notification purposes)
+		// Notify callback
 		options.onCellEdit?.(rowId, columnKey, value, originalValue);
 
 		editState = null;
 		return true;
 	}
 
-	/**
-	 * Cancel the current edit and revert to original value.
-	 */
 	function cancelEdit(): void {
+		if (editState?.saving) return;
 		editState = null;
 	}
 
-	/**
-	 * Check if a specific cell is currently being edited.
-	 */
 	function isEditing(rowId: string | number, columnKey: string): boolean {
 		return editState?.rowId === rowId && editState?.columnKey === columnKey;
 	}
 
-	/**
-	 * Check if any cell is currently being edited.
-	 */
 	function hasActiveEdit(): boolean {
 		return editState !== null;
 	}
 
-	// Return public API
+	// ===========================================
+	// Data Management
+	// ===========================================
+
+	/**
+	 * Update source data (only works when using data prop, not external DataSource)
+	 */
+	function updateData(newData: TData[]): void {
+		if (localDataSource) {
+			localDataSource.setData(newData);
+			fetchData(); // Refresh
+		}
+	}
+
+	function updateColumns(newColumns: ColumnDef<TData>[]): void {
+		columns = newColumns;
+		const newOrder = [...columnOrder];
+		for (const col of newColumns) {
+			if (!newOrder.includes(col.key)) newOrder.push(col.key);
+		}
+		columnOrder = newOrder.filter((key) => newColumns.some((c) => c.key === key));
+	}
+
+	/**
+	 * Force refresh data from DataSource
+	 * Returns a promise that resolves when the fetch completes
+	 */
+	function refresh(): Promise<void> {
+		return fetchData();
+	}
+
+	// ===========================================
+	// Public API
+	// ===========================================
+
 	return {
-		// Reactive getters
-		get data() {
-			return data;
+		// Data (from DataSource)
+		get rows() {
+			return rows;
 		},
+		get totalRowCount() {
+			return totalRowCount;
+		},
+		get isLoading() {
+			return isLoading;
+		},
+		get queryError() {
+			return queryError;
+		},
+
+		// For backwards compat - processedData now comes from DataSource
+		get data() {
+			return rows;
+		},
+		get processedData() {
+			return rows;
+		},
+
+		// Presentation state
 		get columns() {
 			return columns;
 		},
 		get visibleColumns() {
 			return visibleColumns;
-		},
-		get processedData() {
-			return processedData;
 		},
 		get visibleRows() {
 			return visibleRows;
@@ -779,11 +807,12 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		get visibleRange() {
 			return visibleRange;
 		},
+		// Compute on demand for synchronous access in tests
 		get totalHeight() {
-			return totalHeight;
+			return totalRowCount * rowHeight;
 		},
 		get totalWidth() {
-			return totalWidth;
+			return visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);
 		},
 		get offsetY() {
 			return offsetY;
@@ -806,6 +835,9 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		get filterState() {
 			return filterState;
 		},
+		get globalSearchTerm() {
+			return globalSearchTerm;
+		},
 		get selectedIds() {
 			return selectedIds;
 		},
@@ -814,6 +846,12 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		},
 		get focusedColumnKey() {
 			return focusedColumnKey;
+		},
+		get focusedRowIndex() {
+			return focusedRowIndex;
+		},
+		get lastSelectedRowId() {
+			return lastSelectedRowId;
 		},
 		get columnWidths() {
 			return columnWidths;
@@ -824,20 +862,11 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		get hiddenColumns() {
 			return hiddenColumns;
 		},
-		get focusedRowIndex() {
-			return focusedRowIndex;
-		},
-		get lastSelectedRowId() {
-			return lastSelectedRowId;
-		},
-		get globalSearchTerm() {
-			return globalSearchTerm;
-		},
 		get editState() {
 			return editState;
 		},
 
-		// Config (non-reactive)
+		// Config
 		rowHeight,
 		headerHeight,
 		overscan,
@@ -859,8 +888,6 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		setColumnVisibility,
 		setScroll,
 		setContainerSize,
-		updateData,
-		updateColumns,
 		scrollToRow,
 		setFocus,
 		navigateRow,
@@ -868,14 +895,20 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		navigateToLast,
 		navigateByPage,
 
-		// Edit actions
+		// Edit
 		startEdit,
 		setEditValue,
 		commitEdit,
 		cancelEdit,
 		isEditing,
-		hasActiveEdit
+		hasActiveEdit,
+
+		// Data management
+		updateData,
+		updateColumns,
+		refresh,
+		waitForData
 	};
 }
 
-export type GridStateInstance<TData> = ReturnType<typeof createGridState<TData>>;
+export type GridStateInstance<TData extends Record<string, unknown>> = ReturnType<typeof createGridState<TData>>;

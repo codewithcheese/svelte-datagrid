@@ -5,8 +5,8 @@
 	import CellEditor from './CellEditor.svelte';
 
 	interface Props {
-		row: unknown;
-		column: ColumnDef<unknown>;
+		row: Record<string, unknown>;
+		column: ColumnDef<Record<string, unknown>>;
 		width: number;
 		rowIndex: number;
 		rowId: string | number;
@@ -16,7 +16,7 @@
 
 	let { row, column, width, rowIndex, rowId, editable, onCellClick }: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 
 	// Get cell value using accessor
 	const value = $derived.by(() => {

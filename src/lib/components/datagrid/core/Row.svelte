@@ -5,10 +5,10 @@
 	import Cell from './Cell.svelte';
 
 	interface Props {
-		row: unknown;
+		row: Record<string, unknown>;
 		rowIndex: number;
 		rowId: string | number;
-		columns: ColumnDef<unknown>[];
+		columns: ColumnDef<Record<string, unknown>>[];
 		columnWidths: Map<string, number>;
 		rowHeight: number;
 		isSelected: boolean;
@@ -32,10 +32,10 @@
 		scrollLeft
 	}: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 	const options = getContext<{
-		oncellclick?: (event: GridCellClickEvent<unknown>) => void;
-		onrowclick?: (event: GridRowClickEvent<unknown>) => void;
+		oncellclick?: (event: GridCellClickEvent<Record<string, unknown>>) => void;
+		onrowclick?: (event: GridRowClickEvent<Record<string, unknown>>) => void;
 	}>('datagrid-options');
 
 	function handleRowClick(event: MouseEvent) {
@@ -58,7 +58,7 @@
 		});
 	}
 
-	function handleCellClick(column: ColumnDef<unknown>, value: unknown, event: MouseEvent) {
+	function handleCellClick(column: ColumnDef<Record<string, unknown>>, value: unknown, event: MouseEvent) {
 		options.oncellclick?.({
 			row,
 			rowIndex,

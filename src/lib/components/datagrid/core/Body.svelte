@@ -3,7 +3,7 @@
 	import type { GridStateInstance } from '../../../state/grid-state.svelte.js';
 	import Row from './Row.svelte';
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 	const options = getContext<{
 		rowClass?: string | ((row: unknown, index: number) => string);
 		oncellclick?: (event: unknown) => void;

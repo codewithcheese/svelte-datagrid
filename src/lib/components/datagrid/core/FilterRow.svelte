@@ -9,7 +9,7 @@
 
 	let { headerHeight }: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 </script>
 
 <div

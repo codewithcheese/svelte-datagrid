@@ -4,7 +4,7 @@
 	import type { GridStateInstance } from '../../../state/grid-state.svelte.js';
 
 	interface Props {
-		column: ColumnDef<unknown>;
+		column: ColumnDef<Record<string, unknown>>;
 		width: number;
 		sortable: boolean;
 		resizable: boolean;
@@ -13,7 +13,7 @@
 
 	let { column, width, sortable, resizable, sortDirection }: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 
 	// Resize state
 	let isResizing = $state(false);

@@ -6,7 +6,7 @@
 	import NumberEditor from './editors/NumberEditor.svelte';
 
 	interface Props {
-		column: ColumnDef<unknown>;
+		column: ColumnDef<Record<string, unknown>>;
 		value: unknown;
 		rowId: string | number;
 		width: number;
@@ -14,7 +14,7 @@
 
 	let { column, value, rowId, width }: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 
 	// Get the appropriate editor type based on column config or value type
 	const editorType = $derived.by(() => {

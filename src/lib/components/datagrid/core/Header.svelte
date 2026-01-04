@@ -10,7 +10,7 @@
 
 	let { headerHeight }: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 	const options = getContext<{ sortable: boolean; resizable: boolean; filterable: boolean }>('datagrid-options');
 
 	// Calculate total header height including filter row

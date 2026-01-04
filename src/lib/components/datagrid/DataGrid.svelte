@@ -1,10 +1,10 @@
 <script lang="ts" module>
 	import type { ColumnDef, GridCellClickEvent, GridRowClickEvent, GridSortEvent, GridSelectionChangeEvent, GridCellEditEvent, SelectionMode } from '../../types/index.js';
-	import type { DataSource, MutableDataSource } from '../../query/types.js';
+	import type { DataSource } from '../../query/types.js';
 
-	export interface DataGridProps<TData> {
-		/** Data rows to display */
-		data: TData[];
+	export interface DataGridProps<TData extends Record<string, unknown>> {
+		/** Data rows to display (alternative to dataSource) */
+		data?: TData[];
 		/** Column definitions */
 		columns: ColumnDef<TData, any>[];
 		/** Grid height (number for pixels, string for CSS value) */
@@ -35,27 +35,22 @@
 		class?: string;
 		/** Row CSS class */
 		rowClass?: string | ((row: TData, index: number) => string);
-		/** Show loading state */
+		/** Show loading state (overrides internal loading state) */
 		loading?: boolean;
 		/** Message to show when no data */
 		emptyMessage?: string;
-		/** Error message to display */
+		/** Error message to display (overrides internal error state) */
 		errorMessage?: string;
 		/**
-		 * DataSource for automatic edit persistence.
-		 * When provided with a MutableDataSource, edits are automatically saved.
+		 * DataSource for data fetching and persistence (alternative to data prop).
+		 * When provided, the grid fetches data from this source.
+		 * If it's a MutableDataSource, edits are automatically persisted.
 		 */
-		dataSource?: DataSource<TData> | MutableDataSource<TData>;
-		/**
-		 * Whether to automatically save edits through the DataSource.
-		 * Default: true when dataSource is a MutableDataSource.
-		 * Set to false to disable auto-save and handle persistence manually via oncelledit.
-		 */
-		autoSave?: boolean;
+		dataSource?: DataSource<TData>;
 	}
 </script>
 
-<script lang="ts" generics="TData">
+<script lang="ts" generics="TData extends Record<string, unknown>">
 	import { setContext, type Snippet } from 'svelte';
 	import { createGridState } from '../../state/grid-state.svelte.js';
 	import Header from './core/Header.svelte';
@@ -91,11 +86,10 @@
 		getRowId,
 		class: className = '',
 		rowClass,
-		loading = false,
+		loading,
 		emptyMessage = 'No data to display',
 		errorMessage,
 		dataSource,
-		autoSave,
 		oncellclick,
 		onrowclick,
 		onsortchange,
@@ -113,16 +107,16 @@
 	);
 
 	// Create grid state once with initial values
+	// Either data or dataSource must be provided
 	const gridState = createGridState<TData>({
 		data,
+		dataSource,
 		columns: columns as ColumnDef<TData>[],
 		rowHeight,
 		headerHeight,
 		overscan,
 		getRowId,
 		selectionMode,
-		dataSource,
-		autoSave,
 		onSortChange: (sort: any) => {
 			if (sort.length > 0) {
 				onsortchange?.({
@@ -182,7 +176,7 @@
 
 	// Sync external data/columns changes (skip initial)
 	$effect(() => {
-		if (prevData !== undefined && data !== prevData) {
+		if (prevData !== undefined && data !== undefined && data !== prevData) {
 			gridState.updateData(data);
 		}
 		prevData = data;
@@ -224,6 +218,12 @@
 	const containerStyle = $derived(
 		`height: ${typeof height === 'number' ? `${height}px` : height}; width: ${typeof width === 'number' ? `${width}px` : width};`
 	);
+
+	// Effective loading state - prop overrides internal state
+	const isLoading = $derived(loading ?? gridState.isLoading);
+
+	// Effective error message - prop overrides internal state
+	const displayError = $derived(errorMessage ?? gridState.queryError);
 </script>
 
 <div
@@ -241,16 +241,16 @@
 
 	<Header {headerHeight} />
 
-	{#if errorMessage}
+	{#if displayError}
 		<div class="datagrid-error" role="alert" data-testid="datagrid-error">
 			{#if errorSnippet}
-				{@render errorSnippet(errorMessage)}
+				{@render errorSnippet(displayError)}
 			{:else}
 				<span class="datagrid-error-icon">!</span>
-				<span>{errorMessage}</span>
+				<span>{displayError}</span>
 			{/if}
 		</div>
-	{:else if loading}
+	{:else if isLoading}
 		<div class="datagrid-loading" data-testid="datagrid-loading">
 			{#if loadingSnippet}
 				{@render loadingSnippet()}

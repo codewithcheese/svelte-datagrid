@@ -8,7 +8,7 @@
 
 	let { placeholder = 'Search...' }: Props = $props();
 
-	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
+	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 
 	let inputValue = $state('');
 	let debounceTimer: ReturnType<typeof setTimeout> | null = null;

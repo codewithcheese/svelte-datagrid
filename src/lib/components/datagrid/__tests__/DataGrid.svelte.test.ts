@@ -416,6 +416,10 @@ describe('DataGrid Component', () => {
 				}
 			});
 
+			// Wait for cells to be rendered (data is loaded asynchronously)
+			const firstCell = page.getByTestId('datagrid-cell').first();
+			await expect.element(firstCell).toBeVisible();
+
 			const cells = page.getByTestId('datagrid-cell');
 			const allCells = await cells.all();
 			// At least one cell should have the editable class

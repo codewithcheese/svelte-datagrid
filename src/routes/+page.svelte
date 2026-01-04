@@ -1,8 +1,8 @@
 <script lang="ts">
 	import { DataGrid, createColumnHelper } from '$lib';
 
-	// Sample data type
-	interface Person {
+	// Sample data type - must satisfy Record<string, unknown> for DataGrid
+	interface Person extends Record<string, unknown> {
 		id: number;
 		firstName: string;
 		lastName: string;

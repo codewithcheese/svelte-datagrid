@@ -2,7 +2,7 @@
 	import type { ColumnDef, FilterOperator } from '../../../types/index.js';
 
 	interface Props {
-		column: ColumnDef<unknown>;
+		column: ColumnDef<Record<string, unknown>>;
 		value: unknown;
 		operator: FilterOperator;
 		onchange: (value: unknown, operator: FilterOperator) => void;
