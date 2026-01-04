@@ -115,18 +115,6 @@
 	let rowCount = $state(1000);
 	let data = $state(generateData(rowCount));
 	let selectedCount = $state(0);
-	let generationTime = $state(0);
-
-	function handleRowCountChange(event: Event) {
-		const input = event.target as HTMLInputElement;
-		const newCount = parseInt(input.value) || 1000;
-
-		// Measure generation time
-		const start = performance.now();
-		rowCount = newCount;
-		data = generateData(rowCount);
-		generationTime = performance.now() - start;
-	}
 
 	function handleSelectionChange(event: { selected: Set<string | number> }) {
 		selectedCount = event.selected.size;
@@ -144,41 +132,17 @@
 	</header>
 
 	<div class="controls">
-		<label>
-			Row Count:
-			<input
-				type="number"
-				value={rowCount}
-				onchange={handleRowCountChange}
-				min="10"
-				max="10000000"
-			/>
-		</label>
+		<span class="label">Rows:</span>
+		<div class="presets">
+			<button onclick={() => { rowCount = 1000; data = generateData(1000); }}>1K</button>
+			<button onclick={() => { rowCount = 10000; data = generateData(10000); }}>10K</button>
+			<button onclick={() => { rowCount = 100000; data = generateData(100000); }}>100K</button>
+			<button onclick={() => { rowCount = 1000000; data = generateData(1000000); }}>1M</button>
+			<button onclick={() => { rowCount = 10000000; data = generateData(10000000); }}>10M</button>
+		</div>
 		<span class="info">
-			Showing {data.length.toLocaleString()} rows | {selectedCount} selected
-			{#if generationTime > 0}
-				| Generated in {generationTime.toFixed(0)}ms
-			{/if}
+			{data.length.toLocaleString()} rows | {selectedCount} selected
 		</span>
-	</div>
-
-	<div class="presets">
-		<span>Quick presets:</span>
-		<button onclick={() => { rowCount = 1000; data = generateData(1000); }}>1K</button>
-		<button onclick={() => { rowCount = 10000; data = generateData(10000); }}>10K</button>
-		<button onclick={() => { rowCount = 100000; data = generateData(100000); }}>100K</button>
-		<button onclick={() => {
-			const start = performance.now();
-			rowCount = 1000000;
-			data = generateData(1000000);
-			generationTime = performance.now() - start;
-		}}>1M</button>
-		<button onclick={() => {
-			const start = performance.now();
-			rowCount = 10000000;
-			data = generateData(10000000);
-			generationTime = performance.now() - start;
-		}}>10M</button>
 	</div>
 
 	<div class="grid-container">
@@ -239,52 +203,26 @@
 	.controls {
 		display: flex;
 		align-items: center;
-		gap: 24px;
-		margin-bottom: 8px;
+		gap: 12px;
+		margin-bottom: 16px;
 		padding: 12px 16px;
 		background: white;
 		border-radius: 8px;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 	}
 
-	.controls label {
-		display: flex;
-		align-items: center;
-		gap: 8px;
+	.controls .label {
 		font-weight: 500;
-	}
-
-	.controls input {
-		width: 120px;
-		padding: 6px 12px;
-		border: 1px solid #ddd;
-		border-radius: 4px;
-		font-size: 14px;
-	}
-
-	.info {
-		color: #666;
-		font-size: 14px;
 	}
 
 	.presets {
 		display: flex;
 		align-items: center;
-		gap: 8px;
-		margin-bottom: 16px;
-		padding: 8px 16px;
-		background: white;
-		border-radius: 8px;
-		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-		font-size: 14px;
-	}
-
-	.presets span {
-		color: #666;
+		gap: 6px;
 	}
 
 	.presets button {
-		padding: 4px 12px;
+		padding: 4px 10px;
 		border: 1px solid #1976d2;
 		border-radius: 4px;
 		background: white;
@@ -297,6 +235,12 @@
 	.presets button:hover {
 		background: #1976d2;
 		color: white;
+	}
+
+	.info {
+		color: #666;
+		font-size: 14px;
+		margin-left: auto;
 	}
 
 	.grid-container {
