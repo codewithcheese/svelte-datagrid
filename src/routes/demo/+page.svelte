@@ -55,9 +55,20 @@
 		return `${month + 1}/${day}/${year}`;
 	}
 
-	// Fast currency formatter - avoids toLocaleString overhead
+	// Fast currency formatter - manual formatting to avoid toLocaleString overhead
 	function formatCurrency(value: number): string {
-		return '$' + value.toLocaleString();
+		// Simple comma formatting without locale overhead
+		const str = String(Math.round(value));
+		let result = '';
+		let count = 0;
+		for (let i = str.length - 1; i >= 0; i--) {
+			if (count > 0 && count % 3 === 0) {
+				result = ',' + result;
+			}
+			result = str[i] + result;
+			count++;
+		}
+		return '$' + result;
 	}
 
 	/**
