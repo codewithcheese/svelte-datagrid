@@ -181,7 +181,12 @@
 	// Sync external data/columns changes (skip initial)
 	$effect(() => {
 		if (prevData !== undefined && data !== undefined && data !== prevData) {
+			const start = performance.now();
 			gridState.updateData(data);
+			const duration = performance.now() - start;
+			if (data.length > 10000) {
+				console.log(`  [DataGrid] updateData(${data.length.toLocaleString()} rows): ${duration.toFixed(0)}ms`);
+			}
 		}
 		prevData = data;
 	});

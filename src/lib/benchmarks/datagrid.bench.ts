@@ -1,8 +1,12 @@
 import { describe, bench } from 'vitest';
 import { createVirtualizer } from '../core/virtualizer.js';
 
-// Helper to generate test data
-function generateData(count: number) {
+// ============================================================================
+// Data generation helpers
+// ============================================================================
+
+// Old approach (for comparison) - uses Date objects and Math.random()
+function generateDataOld(count: number) {
 	return Array.from({ length: count }, (_, i) => ({
 		id: i,
 		name: `Item ${i}`,
@@ -11,9 +15,57 @@ function generateData(count: number) {
 	}));
 }
 
-describe('Virtualizer Performance', () => {
-	const ITERATIONS = 1000;
+// Optimized approach - uses timestamps and deterministic patterns
+const BASE_TIMESTAMP = Date.now();
+const DAY_MS = 86400000;
 
+function generateDataOptimized(count: number) {
+	const data = new Array(count);
+	for (let i = 0; i < count; i++) {
+		data[i] = {
+			id: i,
+			name: 'Item ' + i,
+			value: (i * 7919) % 1000,
+			date: BASE_TIMESTAMP - i * DAY_MS
+		};
+	}
+	return data;
+}
+
+// Full Person record (like demo page)
+const DEPARTMENTS = ['Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Operations'];
+const FIRST_NAMES = ['John', 'Jane', 'Bob', 'Alice', 'Charlie', 'Diana', 'Edward', 'Fiona', 'George', 'Hannah'];
+const LAST_NAMES = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez'];
+const EMAIL_SUFFIX = '@example.com';
+const BASE_DATE = new Date(2015, 0, 1).getTime();
+
+function generatePersonData(count: number) {
+	const data = new Array(count);
+	const deptLen = DEPARTMENTS.length;
+	const firstLen = FIRST_NAMES.length;
+	const lastLen = LAST_NAMES.length;
+
+	for (let i = 0; i < count; i++) {
+		data[i] = {
+			id: i + 1,
+			firstName: FIRST_NAMES[i % firstLen],
+			lastName: LAST_NAMES[Math.floor(i / firstLen) % lastLen],
+			age: 22 + (i % 43),
+			email: 'user' + (i + 1) + EMAIL_SUFFIX,
+			department: DEPARTMENTS[i % deptLen],
+			salary: 50000 + ((i * 7919) % 100000),
+			startDate: BASE_DATE + ((i % 3650) * DAY_MS),
+			isActive: i % 5 !== 0
+		};
+	}
+	return data;
+}
+
+// ============================================================================
+// Virtualizer benchmarks
+// ============================================================================
+
+describe('Virtualizer Performance', () => {
 	bench('createVirtualizer initialization', () => {
 		createVirtualizer({
 			count: 100000,
@@ -35,7 +87,6 @@ describe('Virtualizer Performance', () => {
 			itemSize: 40,
 			overscan: 5
 		});
-		// Simulate random scroll positions
 		for (let i = 0; i < 100; i++) {
 			const scrollTop = Math.random() * 3900000;
 			virtualizer.getVirtualItems(scrollTop, 600);
@@ -63,67 +114,141 @@ describe('Virtualizer Performance', () => {
 			virtualizer.getIndexAtOffset(offset);
 		}
 	});
+
+	// Test with 10M items
+	bench('createVirtualizer (10M items)', () => {
+		createVirtualizer({
+			count: 10000000,
+			itemSize: 40
+		});
+	});
+
+	bench('getVirtualItems (10M items, 100 scrolls)', () => {
+		const virtualizer = createVirtualizer({
+			count: 10000000,
+			itemSize: 40,
+			overscan: 5
+		});
+		for (let i = 0; i < 100; i++) {
+			const scrollTop = Math.random() * 399999600;
+			virtualizer.getVirtualItems(scrollTop, 600);
+		}
+	});
 });
 
-describe('Data Generation Performance', () => {
-	bench('generate 1K rows', () => {
-		generateData(1000);
+// ============================================================================
+// Data generation benchmarks
+// ============================================================================
+
+describe('Data Generation Performance (Old vs Optimized)', () => {
+	bench('OLD: generate 10K rows', () => {
+		generateDataOld(10000);
 	});
 
-	bench('generate 10K rows', () => {
-		generateData(10000);
+	bench('OPTIMIZED: generate 10K rows', () => {
+		generateDataOptimized(10000);
 	});
 
-	bench('generate 100K rows', () => {
-		generateData(100000);
+	bench('OLD: generate 100K rows', () => {
+		generateDataOld(100000);
+	});
+
+	bench('OPTIMIZED: generate 100K rows', () => {
+		generateDataOptimized(100000);
 	});
 });
+
+describe('Data Generation at Scale', () => {
+	bench('generate 1K rows (Person)', () => {
+		generatePersonData(1000);
+	});
+
+	bench('generate 10K rows (Person)', () => {
+		generatePersonData(10000);
+	});
+
+	bench('generate 100K rows (Person)', () => {
+		generatePersonData(100000);
+	});
+
+	bench('generate 1M rows (Person)', () => {
+		generatePersonData(1000000);
+	});
+
+	// Note: 10M takes ~3-5 seconds
+	bench('generate 10M rows (Person)', () => {
+		generatePersonData(10000000);
+	});
+});
+
+// ============================================================================
+// Sorting benchmarks
+// ============================================================================
 
 describe('Sorting Performance', () => {
-	const data10K = generateData(10000);
-	const data100K = generateData(100000);
+	const data10K = generatePersonData(10000);
+	const data100K = generatePersonData(100000);
+	const data1M = generatePersonData(1000000);
 
 	bench('sort 10K rows by string (localeCompare)', () => {
-		const copy = [...data10K];
-		copy.sort((a, b) => a.name.localeCompare(b.name));
+		const copy = data10K.slice();
+		copy.sort((a, b) => a.firstName.localeCompare(b.firstName));
 	});
 
 	bench('sort 10K rows by number', () => {
-		const copy = [...data10K];
-		copy.sort((a, b) => a.value - b.value);
+		const copy = data10K.slice();
+		copy.sort((a, b) => a.salary - b.salary);
 	});
 
 	bench('sort 100K rows by string (localeCompare)', () => {
-		const copy = [...data100K];
-		copy.sort((a, b) => a.name.localeCompare(b.name));
+		const copy = data100K.slice();
+		copy.sort((a, b) => a.firstName.localeCompare(b.firstName));
 	});
 
 	bench('sort 100K rows by number', () => {
-		const copy = [...data100K];
-		copy.sort((a, b) => a.value - b.value);
+		const copy = data100K.slice();
+		copy.sort((a, b) => a.salary - b.salary);
+	});
+
+	bench('sort 1M rows by number', () => {
+		const copy = data1M.slice();
+		copy.sort((a, b) => a.salary - b.salary);
 	});
 });
 
+// ============================================================================
+// Filtering benchmarks
+// ============================================================================
+
 describe('Filtering Performance', () => {
-	const data10K = generateData(10000);
-	const data100K = generateData(100000);
+	const data10K = generatePersonData(10000);
+	const data100K = generatePersonData(100000);
+	const data1M = generatePersonData(1000000);
 
 	bench('filter 10K rows (contains)', () => {
-		data10K.filter((row) => row.name.toLowerCase().includes('item 5'));
+		data10K.filter((row) => row.firstName.toLowerCase().includes('john'));
 	});
 
 	bench('filter 10K rows (number comparison)', () => {
-		data10K.filter((row) => row.value > 500);
+		data10K.filter((row) => row.salary > 100000);
 	});
 
 	bench('filter 100K rows (contains)', () => {
-		data100K.filter((row) => row.name.toLowerCase().includes('item 5'));
+		data100K.filter((row) => row.firstName.toLowerCase().includes('john'));
 	});
 
 	bench('filter 100K rows (number comparison)', () => {
-		data100K.filter((row) => row.value > 500);
+		data100K.filter((row) => row.salary > 100000);
+	});
+
+	bench('filter 1M rows (number comparison)', () => {
+		data1M.filter((row) => row.salary > 100000);
 	});
 });
+
+// ============================================================================
+// Selection operations benchmarks
+// ============================================================================
 
 describe('Selection Operations', () => {
 	bench('create Set with 1K items', () => {
@@ -154,6 +279,10 @@ describe('Selection Operations', () => {
 	});
 });
 
+// ============================================================================
+// Column width calculations benchmarks
+// ============================================================================
+
 describe('Column Width Calculations', () => {
 	const columnWidths = new Map(
 		Array.from({ length: 50 }, (_, i) => [`col-${i}`, 100 + Math.random() * 200])
@@ -164,7 +293,6 @@ describe('Column Width Calculations', () => {
 		for (const width of columnWidths.values()) {
 			total += width;
 		}
-		// Don't return - bench functions should return void
 		void total;
 	});
 
@@ -172,5 +300,44 @@ describe('Column Width Calculations', () => {
 		for (let i = 0; i < 1000; i++) {
 			columnWidths.get(`col-${i % 50}`);
 		}
+	});
+});
+
+// ============================================================================
+// Array operations benchmarks (copy vs reference)
+// ============================================================================
+
+describe('Array Copy Performance', () => {
+	const data100K = generatePersonData(100000);
+	const data1M = generatePersonData(1000000);
+
+	bench('spread copy 100K rows', () => {
+		const copy = [...data100K];
+		void copy;
+	});
+
+	bench('slice copy 100K rows', () => {
+		const copy = data100K.slice();
+		void copy;
+	});
+
+	bench('spread copy 1M rows', () => {
+		const copy = [...data1M];
+		void copy;
+	});
+
+	bench('slice copy 1M rows', () => {
+		const copy = data1M.slice();
+		void copy;
+	});
+
+	bench('slice subset 1M rows (first 100)', () => {
+		const copy = data1M.slice(0, 100);
+		void copy;
+	});
+
+	bench('slice subset 1M rows (middle 100)', () => {
+		const copy = data1M.slice(500000, 500100);
+		void copy;
 	});
 });

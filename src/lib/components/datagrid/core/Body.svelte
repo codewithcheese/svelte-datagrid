@@ -102,7 +102,7 @@
 >
 	<div
 		class="datagrid-scroll-container"
-		style="height: {gridState.totalHeight}px; width: {gridState.totalWidth}px;"
+		style="height: {gridState.renderHeight}px; width: {gridState.totalWidth}px;"
 	>
 		<div
 			class="datagrid-rows"

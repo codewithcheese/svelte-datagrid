@@ -285,8 +285,10 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		return scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
 	});
 
-	// Note: visibleRange, visibleRows, and offsetY are computed inline in getters
-	// for synchronous access in tests. See the return object below.
+	// Render height clamped to browser-safe maximum
+	// Browsers struggle with elements > ~15M pixels (varies by browser)
+	// We use 10M as a safe limit that works across all browsers
+	const MAX_RENDER_HEIGHT = 10_000_000;
 
 	// ===========================================
 	// Data Fetching (delegate to DataSource)
@@ -299,6 +301,8 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		currentRequestId = requestId;
 		isLoading = true;
 		queryError = null;
+
+		const fetchStart = performance.now();
 
 		try {
 			const request: GridQueryRequest = {
@@ -314,14 +318,23 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 				requires: { rowCount: true }
 			};
 
+			const getRowsStart = performance.now();
 			const result = await internalDataSource.getRows(request);
+			const getRowsDuration = performance.now() - getRowsStart;
 
 			// Check if this is still the current request
 			if (currentRequestId !== requestId) return;
 
 			if (result.success) {
+				const assignStart = performance.now();
 				rows = result.data.rows;
 				totalRowCount = result.data.rowCount ?? result.data.rows.length;
+				const assignDuration = performance.now() - assignStart;
+
+				// Log timing for large datasets
+				if (result.data.rows.length > 10000) {
+					console.log(`  [grid-state] getRows: ${getRowsDuration.toFixed(0)}ms, assign: ${assignDuration.toFixed(0)}ms`);
+				}
 			} else {
 				queryError = result.error.message;
 				rows = [];
@@ -335,6 +348,10 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		} finally {
 			if (currentRequestId === requestId) {
 				isLoading = false;
+				const totalDuration = performance.now() - fetchStart;
+				if (totalRowCount > 10000) {
+					console.log(`  [grid-state] fetchData total: ${totalDuration.toFixed(0)}ms`);
+				}
 			}
 		}
 	}
@@ -893,6 +910,9 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 	 */
 	function updateData(newData: TData[]): void {
 		if (localDataSource) {
+			// Clear current rows first to help GC release memory before new allocation
+			rows = [];
+			totalRowCount = 0;
 			localDataSource.setData(newData);
 			fetchData(); // Refresh
 		}
@@ -979,6 +999,12 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		},
 		get totalHeight() {
 			return totalRowCount * rowHeight;
+		},
+		// Render height clamped to browser-safe maximum (10M pixels)
+		// Use this for DOM element height to prevent browser layout issues
+		get renderHeight() {
+			const total = totalRowCount * rowHeight;
+			return Math.min(total, MAX_RENDER_HEIGHT);
 		},
 		get totalWidth() {
 			return visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);
