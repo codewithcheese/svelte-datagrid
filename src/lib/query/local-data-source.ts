@@ -210,7 +210,9 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 			}
 
 			// Apply pagination (slice creates shallow copy of subset only)
+			const paginationStart = performance.now();
 			rows = this.applyPagination(rows, request.pagination);
+			const paginationDuration = performance.now() - paginationStart;
 
 			// Apply projection if requested
 			if (request.projection && request.projection.length > 0) {
@@ -227,6 +229,11 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 			}
 
 			const duration = performance.now() - startTime;
+
+			// Log timing for large datasets
+			if (rowCount > 10000) {
+				console.log(`  [LocalDataSource] getRows: ${duration.toFixed(0)}ms (pagination slice: ${paginationDuration.toFixed(0)}ms, returning ${rows.length.toLocaleString()} of ${rowCount.toLocaleString()} rows)`);
+			}
 
 			return {
 				success: true,
@@ -632,13 +639,27 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 
 	private applyPagination(rows: TRow[], pagination: GridQueryRequest['pagination']): TRow[] {
 		switch (pagination.type) {
-			case 'offset':
+			case 'offset': {
+				// Optimization: if offset is 0 and limit covers all rows, return original array (no copy)
+				if (pagination.offset === 0 && pagination.limit >= rows.length) {
+					return rows;
+				}
 				return rows.slice(pagination.offset, pagination.offset + pagination.limit);
+			}
 
-			case 'range':
+			case 'range': {
+				// Optimization: if range covers all rows, return original array (no copy)
+				if (pagination.startRow === 0 && pagination.endRow >= rows.length) {
+					return rows;
+				}
 				return rows.slice(pagination.startRow, pagination.endRow);
+			}
 
 			case 'cursor':
+				// Optimization: if limit covers all rows, return original array (no copy)
+				if (pagination.limit >= rows.length) {
+					return rows;
+				}
 				return rows.slice(0, pagination.limit);
 
 			default:

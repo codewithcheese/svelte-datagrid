@@ -171,11 +171,33 @@
 		isGenerating = true;
 		rowCount = count;
 
+		// Performance instrumentation - helps diagnose slowness
+		console.log(`\n⏱️ Starting load of ${count.toLocaleString()} rows...`);
+		const totalStart = performance.now();
+
 		// Use setTimeout to let browser paint the "Generating..." message first
 		// then do fast sync generation in one go
 		setTimeout(() => {
-			data = generateData(count);
+			// Step 1: Generate data
+			const genStart = performance.now();
+			const newData = generateData(count);
+			const genDuration = performance.now() - genStart;
+			console.log(`  1. Generate data: ${genDuration.toFixed(0)}ms`);
+
+			// Step 2: Assign to state (triggers Svelte reactivity)
+			const assignStart = performance.now();
+			data = newData;
+			const assignDuration = performance.now() - assignStart;
+			console.log(`  2. Assign to state: ${assignDuration.toFixed(0)}ms`);
+
 			isGenerating = false;
+
+			// Step 3: Measure total (including render in next frame)
+			requestAnimationFrame(() => {
+				const totalDuration = performance.now() - totalStart;
+				console.log(`  3. Total (incl render): ${totalDuration.toFixed(0)}ms`);
+				console.log(`✅ Loaded ${count.toLocaleString()} rows\n`);
+			});
 		}, 0);
 	}
 </script>

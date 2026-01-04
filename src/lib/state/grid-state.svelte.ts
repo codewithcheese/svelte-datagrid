@@ -302,6 +302,8 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		isLoading = true;
 		queryError = null;
 
+		const fetchStart = performance.now();
+
 		try {
 			const request: GridQueryRequest = {
 				version: 1,
@@ -316,14 +318,23 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 				requires: { rowCount: true }
 			};
 
+			const getRowsStart = performance.now();
 			const result = await internalDataSource.getRows(request);
+			const getRowsDuration = performance.now() - getRowsStart;
 
 			// Check if this is still the current request
 			if (currentRequestId !== requestId) return;
 
 			if (result.success) {
+				const assignStart = performance.now();
 				rows = result.data.rows;
 				totalRowCount = result.data.rowCount ?? result.data.rows.length;
+				const assignDuration = performance.now() - assignStart;
+
+				// Log timing for large datasets
+				if (result.data.rows.length > 10000) {
+					console.log(`  [grid-state] getRows: ${getRowsDuration.toFixed(0)}ms, assign: ${assignDuration.toFixed(0)}ms`);
+				}
 			} else {
 				queryError = result.error.message;
 				rows = [];
@@ -337,6 +348,10 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		} finally {
 			if (currentRequestId === requestId) {
 				isLoading = false;
+				const totalDuration = performance.now() - fetchStart;
+				if (totalRowCount > 10000) {
+					console.log(`  [grid-state] fetchData total: ${totalDuration.toFixed(0)}ms`);
+				}
 			}
 		}
 	}
