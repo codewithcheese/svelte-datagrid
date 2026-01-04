@@ -6,6 +6,43 @@
  * - Lazy evaluation with minimal allocations
  * - Cached sorting for repeated queries
  * - Direct array slicing for pagination
+ *
+ * ## IMPORTANT: Zero-Copy Semantics
+ *
+ * For maximum performance, LocalDataSource stores your data array by reference,
+ * NOT a copy. This has important implications:
+ *
+ * 1. **Data Ownership**: You and LocalDataSource share the same array.
+ *    Mutations you make to the array are visible to LocalDataSource.
+ *
+ * 2. **Cache Invalidation**: The sort cache is only invalidated when you call
+ *    `setData()` or `mutate()`. Direct mutations to objects in the array
+ *    will NOT invalidate the cache, potentially returning stale sorted results.
+ *
+ * 3. **Safe Usage Patterns**:
+ *    - Use `mutate()` for all data modifications (insert/update/delete)
+ *    - Use `setData()` to replace the entire dataset
+ *    - If you must mutate objects directly, call `setData(data)` afterward
+ *      to invalidate the cache
+ *
+ * 4. **Test Isolation**: When writing tests, pass a fresh copy of your data
+ *    to each test: `createLocalDataSource([...testData], 'id')`
+ *
+ * Example:
+ * ```typescript
+ * const data = generateData(1000000);
+ * const ds = createLocalDataSource(data, 'id'); // Zero-copy, data is shared
+ *
+ * // GOOD: Use mutate() for changes
+ * await ds.mutate([{ type: 'update', rowId: 1, data: { name: 'New' } }]);
+ *
+ * // BAD: Direct mutation doesn't invalidate cache
+ * data[0].name = 'Changed'; // Cache may return stale sort order!
+ *
+ * // If you must mutate directly, invalidate cache:
+ * data[0].name = 'Changed';
+ * ds.setData(data); // Re-set to invalidate cache
+ * ```
  */
 
 import type {
@@ -148,29 +185,28 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 				};
 			}
 
-			// Start with reference to source data (no copy)
+			// Start with reference to source data (no copy yet)
 			let rows: TRow[] = this.data;
-			let needsCopy = false; // Track if we need to copy before mutating
+			let ownsArray = false; // True when we have our own array (from filter/search)
 
 			// Apply search (creates new array via filter)
 			if (request.search?.query) {
 				rows = this.applySearch(rows, request.search.query, request.search.fields);
-				needsCopy = false; // filter() already created a new array
+				ownsArray = true; // filter() created a new array we own
 			}
 
 			// Apply filter (creates new array via filter)
 			if (request.filter) {
 				rows = this.applyFilter(rows, request.filter);
-				needsCopy = false; // filter() already created a new array
+				ownsArray = true; // filter() created a new array we own
 			}
 
 			// Get total count before pagination
 			const rowCount = rows.length;
 
-			// Apply sort (needs a copy since sort mutates)
+			// Apply sort (needs a copy since sort mutates in place)
 			if (request.sort && request.sort.length > 0) {
-				rows = this.applySortCached(rows, request.sort, needsCopy);
-				needsCopy = false; // sort created/used a cached copy
+				rows = this.applySortCached(rows, request.sort, ownsArray);
 			}
 
 			// Apply pagination (slice creates shallow copy of subset only)
@@ -498,30 +534,35 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 
 	/**
 	 * Apply sort with caching for repeated queries on unchanged data.
-	 * Cache is invalidated when data changes.
+	 * Cache is invalidated when data changes via setData() or mutate().
+	 *
+	 * @param rows - The rows to sort
+	 * @param sorts - Sort specifications
+	 * @param ownsArray - True if caller owns the array (from filter/search), can sort in place
 	 */
-	private applySortCached(rows: TRow[], sorts: SortSpec[], needsCopy: boolean): TRow[] {
+	private applySortCached(rows: TRow[], sorts: SortSpec[], ownsArray: boolean): TRow[] {
 		const sortKey = this.getSortCacheKey(sorts);
+		const isFullDataset = rows === this.data;
 
 		// Check if we can use cached result
 		// Only valid if sorting the full dataset (no filters applied) and length matches
 		if (
+			isFullDataset &&
 			this.sortCache &&
 			this.sortCache.key === sortKey &&
-			rows === this.data &&
 			this.sortCache.sourceLength === rows.length
 		) {
 			return this.sortCache.sorted;
 		}
 
-		// Need to sort - create copy if working with original data
-		const toSort = needsCopy || rows === this.data ? rows.slice() : rows;
+		// Need to sort - copy if we don't own the array
+		const toSort = ownsArray ? rows : rows.slice();
 
 		// Sort in place (we own this array now)
 		this.sortInPlace(toSort, sorts);
 
-		// Cache if this was the full dataset
-		if (rows === this.data) {
+		// Cache if this was the full dataset (no filters applied)
+		if (isFullDataset) {
 			this.sortCache = {
 				key: sortKey,
 				sorted: toSort,
