@@ -30,90 +30,54 @@ npm run check
 npx tsc -p tsconfig.test.json --noEmit
 ```
 
-## Documenting Features
+---
 
-Documentation for each DataGrid feature is stored in the `docs/` directory. As you develop and test features, document them following this process:
+## Documentation System
+
+Documentation follows the **Diátaxis** framework, organized into four types:
+
+| Type | Purpose | Location |
+|------|---------|----------|
+| **Tutorials** | Learning-oriented lessons | `docs/tutorials/` |
+| **How-to Guides** | Task-oriented recipes | `docs/how-to/` |
+| **Reference** | Technical specifications | `docs/reference/` |
+| **Explanation** | Conceptual discussions | `docs/explanation/` |
+
+For detailed guidelines, see [Documentation Maintenance](docs/DOCS_MAINTENANCE.md).
+
+### Quick Reference
+
+```
+                    PRACTICAL                      THEORETICAL
+               ┌─────────────────────────────────────────────────┐
+   LEARNING    │   TUTORIALS          │     EXPLANATION          │
+               │   "Teach me"         │     "Why does it..."     │
+               ├──────────────────────┼──────────────────────────┤
+   WORKING     │   HOW-TO             │     REFERENCE            │
+               │   "How do I..."      │     "What is the API..." │
+               └─────────────────────────────────────────────────┘
+```
 
 ### Documentation Workflow
 
-1. **Create a feature doc** when you start implementing a new feature:
-   ```
-   docs/<feature-name>.md
-   ```
+When implementing a feature:
 
-2. **Document during development**, not after. Update the doc as you:
-   - Define the API (props, events, types)
-   - Implement the core functionality
-   - Write tests that demonstrate usage
-   - Discover edge cases or limitations
+1. **Reference first**: Add props/methods to `docs/reference/`
+2. **How-to if applicable**: Create guide in `docs/how-to/`
+3. **Update tutorials**: If beginner journey changes
+4. **Update explanation**: If architecture changes
 
-3. **Structure each feature doc** with these sections:
+### Documentation Checklist
 
-   ```markdown
-   # Feature Name
+Before marking a feature complete:
 
-   Brief description of what this feature does.
+- [ ] Reference documentation updated (props, methods, types)
+- [ ] How-to guide created (if user-facing task)
+- [ ] Code examples tested and working
+- [ ] Cross-links added to related docs
+- [ ] Index files updated for new pages
 
-   ## Usage
-
-   Basic example showing how to use the feature.
-
-   ## Props
-
-   | Prop | Type | Default | Description |
-   |------|------|---------|-------------|
-   | ... | ... | ... | ... |
-
-   ## Events
-
-   | Event | Payload | Description |
-   |-------|---------|-------------|
-   | ... | ... | ... |
-
-   ## Examples
-
-   ### Example: Common Use Case
-   Code example with explanation.
-
-   ### Example: Advanced Use Case
-   More complex example.
-
-   ## Notes
-
-   Any limitations, browser compatibility, or performance considerations.
-   ```
-
-4. **Link tests to docs**. When writing tests, reference the corresponding documentation:
-   ```typescript
-   // See docs/sorting.md for full documentation
-   describe('sorting', () => {
-     // ...
-   });
-   ```
-
-### Feature Documentation Checklist
-
-Before marking a feature as complete, ensure its documentation includes:
-
-- [ ] Clear description of the feature's purpose
-- [ ] All props with types, defaults, and descriptions
-- [ ] All events with payload types and descriptions
-- [ ] At least one basic usage example
-- [ ] At least one advanced example (if applicable)
-- [ ] Known limitations or edge cases
-- [ ] Performance considerations (if applicable)
-
-### Documentation Files
-
-| Feature | Doc File | Status |
-|---------|----------|--------|
-| Core Rendering | `docs/core.md` | Complete |
-| Virtualization | `docs/virtualization.md` | Complete |
-| Sorting | `docs/sorting.md` | Complete |
-| Column Resizing | `docs/column-resizing.md` | Complete |
-| Selection | `docs/selection.md` | Complete |
-| Custom Cells | `docs/custom-cells.md` | Pending |
-| Theming | `docs/theming.md` | Complete |
+---
 
 ## Code Style
 
@@ -122,11 +86,51 @@ Before marking a feature as complete, ensure its documentation includes:
 - Write tests for new features
 - Keep components focused and composable
 
+---
+
 ## Pull Request Process
 
 1. Create a feature branch
 2. Implement the feature with tests
-3. Document the feature in `docs/`
+3. Update documentation following Diátaxis framework
 4. Ensure all tests pass: `npm run test`
 5. Ensure type checking passes: `npm run check`
 6. Submit PR with clear description
+
+---
+
+## Documentation Files Overview
+
+### Tutorials (`docs/tutorials/`)
+
+| File | Purpose |
+|------|---------|
+| `getting-started.md` | First grid in 5 minutes |
+| `adding-selection.md` | Row selection tutorial |
+| `server-side-data.md` | DataSource tutorial |
+
+### How-to Guides (`docs/how-to/`)
+
+| File | Purpose |
+|------|---------|
+| `filtering.md` | Enable per-column and global search |
+| `keyboard-navigation.md` | Arrow key navigation |
+| `theming.md` | Customize appearance |
+| `column-resizing.md` | Resize columns |
+
+### Reference (`docs/reference/`)
+
+| File | Purpose |
+|------|---------|
+| `datagrid.md` | DataGrid component API |
+| `column-definition.md` | Column configuration |
+| `grid-state.md` | State management API |
+| `data-sources.md` | DataSource interface |
+
+### Explanation (`docs/explanation/`)
+
+| File | Purpose |
+|------|---------|
+| `architecture.md` | Overall structure |
+| `state-management.md` | Svelte 5 runes usage |
+| `virtualization.md` | Row virtualization |

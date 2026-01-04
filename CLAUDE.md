@@ -6,7 +6,7 @@
 
 1. **Run all tests**: `npm run test` - All tests must pass
 2. **Run type checking**: `npm run check` - No TypeScript errors
-3. **Update documentation** in `docs/` if API changes occur
+3. **Update documentation** following the Diátaxis framework (see below)
 
 ## Key Commands
 
@@ -40,6 +40,36 @@
 - Column visibility: `setColumnVisibility()`
 - See `src/lib/state/grid-state.svelte.ts` for full API
 
+## Documentation (Diátaxis Framework)
+
+Documentation uses the **Diátaxis** framework. When updating docs:
+
+| Change Type | Update These Docs |
+|-------------|-------------------|
+| New prop/method | `docs/reference/` (required) |
+| New user feature | `docs/how-to/` (create guide) |
+| API behavior change | `docs/reference/` + affected tutorials |
+| Architecture change | `docs/explanation/` |
+
+### Documentation Structure
+
+```
+docs/
+├── tutorials/     # Learning-oriented lessons (beginner → advanced)
+├── how-to/        # Task-oriented guides ("how do I...")
+├── reference/     # Technical specifications (props, methods, types)
+└── explanation/   # Conceptual discussions ("why does it...")
+```
+
+### Documentation Workflow
+
+1. **Reference first**: Always update `docs/reference/` when adding/changing API
+2. **How-to if applicable**: Create task guide in `docs/how-to/`
+3. **Update tutorials**: If beginner experience changes
+4. **Update indexes**: Add new pages to `index.md` files
+
+See `docs/DOCS_MAINTENANCE.md` for complete methodology.
+
 ## Key Files
 
 | File | Purpose |
@@ -47,7 +77,8 @@
 | `ROADMAP.md` | Feature roadmap with complexity ranking |
 | `CONTRIBUTING.md` | Development workflow and documentation guide |
 | `DEBUGGING.md` | Debugging strategies for common issues |
-| `docs/` | Feature documentation |
+| `docs/DOCS_MAINTENANCE.md` | Documentation methodology and standards |
+| `docs/` | Feature documentation (Diátaxis structure) |
 
 ## Performance Targets
 
