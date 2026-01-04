@@ -33,6 +33,8 @@
 		"@vitest/coverage-v8": "^4.0.0",
 		"@vitest/ui": "^4.0.0",
 		"jsdom": "^25.0.0",
+		"mdsvex": "^0.12.6",
+		"shiki": "^3.20.0",
 		"svelte": "^5.45.6",
 		"svelte-check": "^4.3.4",
 		"typescript": "^5.9.3",
