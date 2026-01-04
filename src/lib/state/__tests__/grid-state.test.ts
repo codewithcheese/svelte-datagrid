@@ -865,4 +865,117 @@ describe('Grid State', () => {
 			});
 		});
 	});
+
+	describe('column pinning', () => {
+		test('pinnedLeftColumns returns only left-pinned columns', async () => {
+			const state = createGridState({
+				data: testData,
+				columns: [
+					{ key: 'id', header: 'ID', pinned: 'left' },
+					{ key: 'name', header: 'Name' },
+					{ key: 'age', header: 'Age' }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			expect(state.pinnedLeftColumns.length).toBe(1);
+			expect(state.pinnedLeftColumns[0].key).toBe('id');
+		});
+
+		test('scrollableColumns returns non-pinned columns', async () => {
+			const state = createGridState({
+				data: testData,
+				columns: [
+					{ key: 'id', header: 'ID', pinned: 'left' },
+					{ key: 'name', header: 'Name' },
+					{ key: 'age', header: 'Age' }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			expect(state.scrollableColumns.length).toBe(2);
+			expect(state.scrollableColumns.map((c) => c.key)).toEqual(['name', 'age']);
+		});
+
+		test('pinnedLeftWidth calculates total width of pinned columns', async () => {
+			const state = createGridState({
+				data: testData,
+				columns: [
+					{ key: 'id', header: 'ID', width: 80, pinned: 'left' },
+					{ key: 'name', header: 'Name', width: 100, pinned: 'left' },
+					{ key: 'age', header: 'Age', width: 60 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			expect(state.pinnedLeftWidth).toBe(180); // 80 + 100
+		});
+
+		test('scrollableWidth calculates total width of scrollable columns', async () => {
+			const state = createGridState({
+				data: testData,
+				columns: [
+					{ key: 'id', header: 'ID', width: 80, pinned: 'left' },
+					{ key: 'name', header: 'Name', width: 100 },
+					{ key: 'age', header: 'Age', width: 60 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			expect(state.scrollableWidth).toBe(160); // 100 + 60
+		});
+
+		test('setColumnPinned updates column pinning', async () => {
+			const state = await createTestGridState();
+
+			expect(state.pinnedLeftColumns.length).toBe(0);
+
+			state.setColumnPinned('id', 'left');
+
+			expect(state.pinnedLeftColumns.length).toBe(1);
+			expect(state.pinnedLeftColumns[0].key).toBe('id');
+		});
+
+		test('setColumnPinned reorders columns (pinned first)', async () => {
+			const state = await createTestGridState();
+
+			// Initially: id, name, age
+			expect(state.columnOrder).toEqual(['id', 'name', 'age']);
+
+			state.setColumnPinned('age', 'left');
+
+			// After pinning age: age (pinned), id, name (scrollable)
+			expect(state.columnOrder).toEqual(['age', 'id', 'name']);
+			expect(state.pinnedLeftColumns[0].key).toBe('age');
+		});
+
+		test('setColumnPinned to false unpins a column', async () => {
+			const state = createGridState({
+				data: testData,
+				columns: [
+					{ key: 'id', header: 'ID', pinned: 'left' },
+					{ key: 'name', header: 'Name' },
+					{ key: 'age', header: 'Age' }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			expect(state.pinnedLeftColumns.length).toBe(1);
+
+			state.setColumnPinned('id', false);
+
+			expect(state.pinnedLeftColumns.length).toBe(0);
+			expect(state.scrollableColumns.length).toBe(3);
+		});
+	});
 });

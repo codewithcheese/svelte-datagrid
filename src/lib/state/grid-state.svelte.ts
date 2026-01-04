@@ -268,6 +268,23 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 			.filter(Boolean);
 	});
 
+	// Pinned column support
+	const pinnedLeftColumns = $derived.by(() => {
+		return visibleColumns.filter((col) => col.pinned === 'left');
+	});
+
+	const scrollableColumns = $derived.by(() => {
+		return visibleColumns.filter((col) => col.pinned !== 'left' && col.pinned !== 'right');
+	});
+
+	const pinnedLeftWidth = $derived.by(() => {
+		return pinnedLeftColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
+	});
+
+	const scrollableWidth = $derived.by(() => {
+		return scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
+	});
+
 	const visibleRange = $derived.by(() => {
 		const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
 		const visibleCount = Math.ceil(containerHeight / rowHeight) + 2 * overscan;
@@ -531,13 +548,40 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		hiddenColumns = newHidden;
 	}
 
+	function setColumnPinned(columnKey: string, pinned: 'left' | 'right' | false) {
+		const idx = columns.findIndex((c) => c.key === columnKey);
+		if (idx < 0) return;
+
+		// Update column definition
+		columns = columns.map((c, i) => (i === idx ? { ...c, pinned } : c));
+
+		// Reorder: pinned left columns go first, then scrollable, then pinned right
+		const newOrder = [
+			...columnOrder.filter((key) => {
+				const col = columns.find((c) => c.key === key);
+				return col?.pinned === 'left';
+			}),
+			...columnOrder.filter((key) => {
+				const col = columns.find((c) => c.key === key);
+				return col?.pinned !== 'left' && col?.pinned !== 'right';
+			}),
+			...columnOrder.filter((key) => {
+				const col = columns.find((c) => c.key === key);
+				return col?.pinned === 'right';
+			})
+		];
+		columnOrder = newOrder;
+	}
+
 	// Viewport actions
 	function setScroll(top: number, left: number) {
-		// Compute totals inline since we removed the $derived
+		// Compute totals - scrollLeft only applies to scrollable (non-pinned) columns
 		const computedTotalHeight = totalRowCount * rowHeight;
-		const computedTotalWidth = visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);
+		const computedScrollableWidth = scrollableWidth;
+		const availableScrollWidth = containerWidth - pinnedLeftWidth;
+
 		scrollTop = Math.max(0, Math.min(top, Math.max(0, computedTotalHeight - containerHeight)));
-		scrollLeft = Math.max(0, Math.min(left, Math.max(0, computedTotalWidth - containerWidth)));
+		scrollLeft = Math.max(0, Math.min(left, Math.max(0, computedScrollableWidth - availableScrollWidth)));
 	}
 
 	function setContainerSize(width: number, height: number) {
@@ -799,7 +843,23 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 			return columns;
 		},
 		get visibleColumns() {
-			return visibleColumns;
+			// Compute inline for synchronous access in tests
+			return columnOrder
+				.filter((key) => !hiddenColumns.has(key))
+				.map((key) => columns.find((c) => c.key === key)!)
+				.filter(Boolean);
+		},
+		get pinnedLeftColumns() {
+			return this.visibleColumns.filter((col) => col.pinned === 'left');
+		},
+		get scrollableColumns() {
+			return this.visibleColumns.filter((col) => col.pinned !== 'left' && col.pinned !== 'right');
+		},
+		get pinnedLeftWidth() {
+			return this.pinnedLeftColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
+		},
+		get scrollableWidth() {
+			return this.scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
 		},
 		get visibleRows() {
 			return visibleRows;
@@ -886,6 +946,7 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		isRowSelected,
 		setColumnWidth,
 		setColumnVisibility,
+		setColumnPinned,
 		setScroll,
 		setContainerSize,
 		scrollToRow,
