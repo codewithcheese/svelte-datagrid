@@ -290,6 +290,52 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 	// We use 10M as a safe limit that works across all browsers
 	const MAX_RENDER_HEIGHT = 10_000_000;
 
+	/**
+	 * Check if we're in "scaled scroll" mode (total height exceeds browser max).
+	 * In scaled mode, scroll position is mapped proportionally to row indices.
+	 */
+	function isScaledScrollMode(): boolean {
+		return totalRowCount * rowHeight > MAX_RENDER_HEIGHT;
+	}
+
+	/**
+	 * Map a scroll position to a row index.
+	 * In normal mode: simple division by rowHeight
+	 * In scaled mode: proportional mapping across all rows
+	 */
+	function scrollToRowIndex(scroll: number): number {
+		if (!isScaledScrollMode()) {
+			return scroll / rowHeight;
+		}
+		// Scale scroll position to row index
+		// scrollTop / renderHeight gives us a 0-1 ratio, multiply by total rows
+		const renderHeight = Math.min(totalRowCount * rowHeight, MAX_RENDER_HEIGHT);
+		const maxScroll = Math.max(0, renderHeight - containerHeight);
+		if (maxScroll <= 0) return 0;
+		const scrollRatio = scroll / maxScroll;
+		// Map to row range, accounting for viewport
+		const maxStartRow = Math.max(0, totalRowCount - Math.ceil(containerHeight / rowHeight));
+		return scrollRatio * maxStartRow;
+	}
+
+	/**
+	 * Map a row index to a scroll position.
+	 * Inverse of scrollToRowIndex.
+	 */
+	function rowIndexToScroll(index: number): number {
+		if (!isScaledScrollMode()) {
+			return index * rowHeight;
+		}
+		// Inverse of scrollToRowIndex
+		const renderHeight = Math.min(totalRowCount * rowHeight, MAX_RENDER_HEIGHT);
+		const maxScroll = Math.max(0, renderHeight - containerHeight);
+		if (maxScroll <= 0) return 0;
+		const maxStartRow = Math.max(0, totalRowCount - Math.ceil(containerHeight / rowHeight));
+		if (maxStartRow <= 0) return 0;
+		const scrollRatio = index / maxStartRow;
+		return scrollRatio * maxScroll;
+	}
+
 	// ===========================================
 	// Data Fetching (delegate to DataSource)
 	// ===========================================
@@ -697,11 +743,12 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 	// Viewport actions
 	function setScroll(top: number, left: number) {
 		// Compute totals - scrollLeft only applies to scrollable (non-pinned) columns
-		const computedTotalHeight = totalRowCount * rowHeight;
+		// Use renderHeight (clamped) for scroll limits, not totalHeight
+		const computedRenderHeight = Math.min(totalRowCount * rowHeight, MAX_RENDER_HEIGHT);
 		const computedScrollableWidth = scrollableWidth;
 		const availableScrollWidth = containerWidth - pinnedLeftWidth;
 
-		scrollTop = Math.max(0, Math.min(top, Math.max(0, computedTotalHeight - containerHeight)));
+		scrollTop = Math.max(0, Math.min(top, Math.max(0, computedRenderHeight - containerHeight)));
 		scrollLeft = Math.max(0, Math.min(left, Math.max(0, computedScrollableWidth - availableScrollWidth)));
 	}
 
@@ -713,31 +760,47 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 	function scrollToRow(index: number, align: 'start' | 'center' | 'end' | 'nearest' = 'start') {
 		if (index < 0 || index >= rows.length) return;
 
-		const rowTop = index * rowHeight;
-		const rowBottom = rowTop + rowHeight;
-		const viewportTop = scrollTop;
-		const viewportBottom = scrollTop + containerHeight;
+		// In scaled mode, use rowIndexToScroll for position mapping
+		const scrollForIndex = rowIndexToScroll(index);
+
+		// For 'nearest' alignment, we need to check current visibility
+		// Use the scaled scroll position for comparison
+		const currentRowIndex = scrollToRowIndex(scrollTop);
+		const visibleRowCount = containerHeight / rowHeight;
 
 		let targetScrollTop: number;
 
 		switch (align) {
-			case 'center':
-				targetScrollTop = index * rowHeight - containerHeight / 2 + rowHeight / 2;
+			case 'center': {
+				// Center the row in the viewport
+				const centerIndex = Math.max(0, index - visibleRowCount / 2 + 0.5);
+				targetScrollTop = rowIndexToScroll(centerIndex);
 				break;
-			case 'end':
-				targetScrollTop = index * rowHeight - containerHeight + rowHeight;
+			}
+			case 'end': {
+				// Position row at the bottom of viewport
+				const endIndex = Math.max(0, index - visibleRowCount + 1);
+				targetScrollTop = rowIndexToScroll(endIndex);
 				break;
-			case 'nearest':
-				if (rowTop < viewportTop) {
-					targetScrollTop = rowTop;
-				} else if (rowBottom > viewportBottom) {
-					targetScrollTop = rowBottom - containerHeight;
+			}
+			case 'nearest': {
+				// Only scroll if row is outside current viewport
+				if (index < currentRowIndex) {
+					// Row is above viewport, scroll up to show it at top
+					targetScrollTop = rowIndexToScroll(index);
+				} else if (index >= currentRowIndex + visibleRowCount) {
+					// Row is below viewport, scroll down to show it at bottom
+					const endIndex = Math.max(0, index - visibleRowCount + 1);
+					targetScrollTop = rowIndexToScroll(endIndex);
 				} else {
+					// Row is already visible, no scroll needed
 					return;
 				}
 				break;
+			}
 			default:
-				targetScrollTop = index * rowHeight;
+				// 'start' - position row at top of viewport
+				targetScrollTop = scrollForIndex;
 		}
 
 		setScroll(targetScrollTop, scrollLeft);
@@ -987,8 +1050,10 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		},
 		// Compute on demand for synchronous access in tests
 		// The $derived values don't update synchronously in non-browser test environments
+		// Uses scaled scroll mapping when row count exceeds browser height limits
 		get visibleRange() {
-			const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+			const rawRowIndex = scrollToRowIndex(scrollTop);
+			const startIndex = Math.max(0, Math.floor(rawRowIndex) - overscan);
 			const visibleCount = Math.ceil(containerHeight / rowHeight) + 2 * overscan;
 			const endIndex = Math.min(rows.length - 1, startIndex + visibleCount);
 			return { startIndex, endIndex, visibleCount };
@@ -1010,7 +1075,17 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 			return visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);
 		},
 		get offsetY() {
-			return this.visibleRange.startIndex * rowHeight;
+			if (!isScaledScrollMode()) {
+				return this.visibleRange.startIndex * rowHeight;
+			}
+			// In scaled mode, position rows relative to scroll position
+			// Calculate offset so that the correct row appears at the scroll position
+			const rawRowIndex = scrollToRowIndex(scrollTop);
+			const startIndex = this.visibleRange.startIndex;
+			// Position rows so that row at rawRowIndex appears at scrollTop
+			// Row startIndex is at offsetY, row rawRowIndex should be at scrollTop
+			// offsetY + (rawRowIndex - startIndex) * rowHeight ≈ scrollTop
+			return scrollTop - (rawRowIndex - startIndex) * rowHeight;
 		},
 		get scrollTop() {
 			return scrollTop;

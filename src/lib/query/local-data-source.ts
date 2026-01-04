@@ -59,6 +59,7 @@ import type {
 	MutableDataSource,
 	RowMutation
 } from './types.js';
+import { AsyncOperationManager, createAsyncOperationManager } from '../workers/async-operation-manager.js';
 
 /** Options for LocalDataSource */
 export interface LocalDataSourceOptions<TRow> {
@@ -73,6 +74,21 @@ export interface LocalDataSourceOptions<TRow> {
 
 	/** Custom filter function */
 	filterFn?: (row: TRow, filter: FilterExpression) => boolean;
+
+	/**
+	 * Enable Web Worker for sorting to avoid blocking the main thread.
+	 * When enabled, sorting is performed in a background thread for datasets
+	 * larger than asyncSortThreshold rows.
+	 * Default: true (if Web Workers are available)
+	 */
+	useAsyncSort?: boolean;
+
+	/**
+	 * Minimum number of rows to trigger async (worker-based) sorting.
+	 * Below this threshold, sorting is done synchronously on the main thread.
+	 * Default: 10000
+	 */
+	asyncSortThreshold?: number;
 }
 
 /**
@@ -146,12 +162,42 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 		sourceLength: number;
 	} | null = null;
 
+	// Async operations configuration
+	private readonly useAsyncSort: boolean;
+	private readonly asyncSortThreshold: number;
+	private asyncManager: AsyncOperationManager | null = null;
+
 	constructor(options: LocalDataSourceOptions<TRow>) {
 		// Zero-copy: use reference directly (caller owns the data)
 		this.data = options.data;
 		this.idField = options.idField ?? ('id' as keyof TRow);
 		this.customComparator = options.comparator;
 		this.customFilterFn = options.filterFn;
+
+		// Async operations configuration
+		// Default to false to avoid breaking existing behavior - users can opt in
+		this.useAsyncSort = options.useAsyncSort ?? false;
+		this.asyncSortThreshold = options.asyncSortThreshold ?? 10000;
+
+		// Initialize async operation manager if async sorting is enabled
+		if (this.useAsyncSort && typeof Worker !== 'undefined') {
+			this.initAsyncManager();
+		}
+	}
+
+	/**
+	 * Initialize the async operation manager (lazily)
+	 */
+	private initAsyncManager(): void {
+		if (this.asyncManager) return;
+
+		try {
+			this.asyncManager = createAsyncOperationManager();
+			this.asyncManager.initialize();
+		} catch (err) {
+			console.warn('[LocalDataSource] Failed to initialize async manager:', err);
+			this.asyncManager = null;
+		}
 	}
 
 	/**
@@ -206,7 +252,18 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 
 			// Apply sort (needs a copy since sort mutates in place)
 			if (request.sort && request.sort.length > 0) {
-				rows = this.applySortCached(rows, request.sort, ownsArray);
+				// Use async sorting for large datasets if worker is available
+				const shouldUseAsync =
+					this.asyncManager?.isAvailable() &&
+					rowCount >= this.asyncSortThreshold &&
+					!this.customComparator; // Custom comparator can't be serialized to worker
+
+				if (shouldUseAsync) {
+					const sortResult = await this.applySortAsync(rows, request.sort, ownsArray);
+					rows = sortResult;
+				} else {
+					rows = this.applySortCached(rows, request.sort, ownsArray);
+				}
 			}
 
 			// Apply pagination (slice creates shallow copy of subset only)
@@ -371,6 +428,12 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 	destroy(): void {
 		this.subscribers.clear();
 		this.invalidateCache();
+
+		// Clean up async operation manager
+		if (this.asyncManager) {
+			this.asyncManager.destroy();
+			this.asyncManager = null;
+		}
 	}
 
 	// =========================================================================
@@ -578,6 +641,61 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 		}
 
 		return toSort;
+	}
+
+	/**
+	 * Apply sort using Web Worker for non-blocking operation.
+	 * Falls back to sync sorting if worker is unavailable.
+	 *
+	 * @param rows - The rows to sort
+	 * @param sorts - Sort specifications
+	 * @param ownsArray - True if caller owns the array (from filter/search)
+	 */
+	private async applySortAsync(rows: TRow[], sorts: SortSpec[], ownsArray: boolean): Promise<TRow[]> {
+		const sortKey = this.getSortCacheKey(sorts);
+		const isFullDataset = rows === this.data;
+
+		// Check if we can use cached result
+		if (
+			isFullDataset &&
+			this.sortCache &&
+			this.sortCache.key === sortKey &&
+			this.sortCache.sourceLength === rows.length
+		) {
+			return this.sortCache.sorted;
+		}
+
+		// Use async operation manager for sorting
+		if (!this.asyncManager) {
+			// Fallback to sync
+			return this.applySortCached(rows, sorts, ownsArray);
+		}
+
+		try {
+			const result = await this.asyncManager.execute<
+				TRow[],
+				{ sorts: SortSpec[] },
+				TRow[]
+			>('sort', rows, { sorts });
+
+			if (result.usedWorker) {
+				console.log(`  [LocalDataSource] Async sort completed in ${result.duration.toFixed(0)}ms (worker)`);
+			}
+
+			// Cache if this was the full dataset
+			if (isFullDataset) {
+				this.sortCache = {
+					key: sortKey,
+					sorted: result.output,
+					sourceLength: rows.length
+				};
+			}
+
+			return result.output;
+		} catch (err) {
+			console.warn('[LocalDataSource] Async sort failed, falling back to sync:', err);
+			return this.applySortCached(rows, sorts, ownsArray);
+		}
 	}
 
 	private getSortCacheKey(sorts: SortSpec[]): string {
