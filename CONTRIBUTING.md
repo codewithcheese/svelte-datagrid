@@ -7,6 +7,21 @@ pnpm install
 pnpm dev
 ```
 
+### Optional: Link Checker
+
+To validate documentation links, install [lychee](https://github.com/lycheeverse/lychee):
+
+```bash
+# macOS
+brew install lychee
+
+# Rust/Cargo
+cargo install lychee
+
+# Then run
+pnpm check:links
+```
+
 ## Running Tests
 
 ```bash
@@ -117,6 +132,8 @@ Before marking a feature complete:
 | `keyboard-navigation.md` | Arrow key navigation |
 | `theming.md` | Customize appearance |
 | `column-resizing.md` | Resize columns |
+| `custom-cells.md` | Render custom cell content |
+| `editing.md` | Enable inline cell editing |
 
 ### Reference (`docs/reference/`)
 
@@ -126,6 +143,9 @@ Before marking a feature complete:
 | `column-definition.md` | Column configuration |
 | `grid-state.md` | State management API |
 | `data-sources.md` | DataSource interface |
+| `types.md` | TypeScript type definitions |
+| `css-variables.md` | Theming tokens |
+| `filter-operators.md` | Filter operators |
 
 ### Explanation (`docs/explanation/`)
 
@@ -134,3 +154,5 @@ Before marking a feature complete:
 | `architecture.md` | Overall structure |
 | `state-management.md` | Svelte 5 runes usage |
 | `virtualization.md` | Row virtualization |
+| `data-source-architecture.md` | Data layer design |
+| `performance.md` | Performance optimizations |
