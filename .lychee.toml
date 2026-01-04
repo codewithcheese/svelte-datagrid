@@ -1,0 +1,21 @@
+# Lychee link checker configuration
+# https://lychee.cli.rs/
+
+# Only check local/relative links (skip external URLs)
+# This prevents CI failures from external site downtime
+exclude = ["^https?://"]
+
+# Don't require network access
+offline = true
+
+# Include file links
+include_fragments = true
+
+# Base directory for relative links
+base = "."
+
+# Output format
+format = "compact"
+
+# Don't check mail addresses
+include_mail = false

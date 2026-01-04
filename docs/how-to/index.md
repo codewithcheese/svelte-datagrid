@@ -32,14 +32,6 @@ How-to guides are for developers who **know what they want to do** but need to k
 |-------|-------------|
 | [Custom Cells](./custom-cells.md) | Render custom content in cells |
 | [Theming](./theming.md) | Customize colors and appearance |
-| [Row Styling](./row-styling.md) | Apply conditional row styles |
-
-### Data Sources
-
-| Guide | Description |
-|-------|-------------|
-| [PostgreSQL](./postgresql.md) | Connect to PostgreSQL databases |
-| [REST API](./rest-api.md) | Fetch data from REST endpoints |
 
 ---
 

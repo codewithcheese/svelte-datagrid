@@ -83,23 +83,25 @@ Reference documentation is for developers who **already know what they're lookin
 
 ```typescript
 // Selection
-gridState.selectRow(rowId)
-gridState.selectRange(startId, endId)
+gridState.selectRow(rowId, mode?)      // mode: 'toggle'|'add'|'remove'|'set'
+gridState.selectRange(targetRowId)     // Range from lastSelectedRowId
 gridState.selectAll()
 gridState.clearSelection()
 
 // Navigation
-gridState.navigateRow(index)
-gridState.navigateToFirst()
-gridState.navigateToLast()
-gridState.navigateByPage(direction)
+gridState.navigateRow(offset, select?) // Move by offset rows
+gridState.navigateToFirst(select?)
+gridState.navigateToLast(select?)
+gridState.navigateByPage('up'|'down', select?)
 
 // Filtering
-gridState.setFilter(column, filter)
-gridState.clearFilter(column)
+gridState.setFilter(columnKey, value, operator?)
+gridState.clearFilters()               // Clear all filters
 gridState.setGlobalSearch(term)
+gridState.clearGlobalSearch()
 
 // Columns
-gridState.setColumnVisibility(column, visible)
-gridState.setColumnWidth(column, width)
+gridState.setColumnVisibility(columnKey, visible)
+gridState.setColumnWidth(columnKey, width)
+gridState.setColumnPinned(columnKey, 'left'|'right'|false)
 ```

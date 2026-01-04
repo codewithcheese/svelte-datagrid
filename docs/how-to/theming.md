@@ -255,4 +255,3 @@ const columns = [
 
 - [Reference: CSS Variables](../reference/css-variables.md) - Complete variable list
 - [Reference: Column Definition](../reference/column-definition.md) - cellClass and headerClass
-- [How-to: Row Styling](./row-styling.md) - Conditional row styles
