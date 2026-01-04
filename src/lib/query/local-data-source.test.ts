@@ -217,6 +217,81 @@ describe('LocalDataSource - Sort Cache', () => {
 	});
 });
 
+describe('LocalDataSource - Async Sort Options', () => {
+	test('createLocalDataSource accepts async sort options', () => {
+		const data = [
+			{ id: 1, name: 'Charlie' },
+			{ id: 2, name: 'Alice' }
+		];
+
+		// Should not throw
+		const ds = createLocalDataSource(data, 'id', {
+			useAsyncSort: true,
+			asyncSortThreshold: 5000
+		});
+
+		expect(ds).toBeDefined();
+		expect(ds.getData()).toBe(data);
+	});
+
+	test('async sort falls back to sync when below threshold', async () => {
+		const data = [
+			{ id: 1, name: 'Charlie' },
+			{ id: 2, name: 'Alice' },
+			{ id: 3, name: 'Bob' }
+		];
+
+		// Enable async sort but with high threshold (won't use worker for small data)
+		const ds = createLocalDataSource(data, 'id', {
+			useAsyncSort: true,
+			asyncSortThreshold: 10000 // 3 rows is well below threshold
+		});
+
+		const result = await ds.getRows({
+			pagination: { type: 'offset', offset: 0, limit: 10 },
+			sort: [{ field: 'name', direction: 'asc' }]
+		});
+
+		expect(result.success).toBe(true);
+		if (result.success) {
+			expect(result.data.rows.map((r) => r.name)).toEqual(['Alice', 'Bob', 'Charlie']);
+		}
+	});
+
+	test('LocalDataSource with async sort produces same results as sync sort', async () => {
+		// Generate enough data to potentially trigger async sorting
+		const data = [];
+		for (let i = 0; i < 100; i++) {
+			data.push({ id: i + 1, name: `User ${String(i).padStart(3, '0')}` });
+		}
+
+		// Create two data sources - one with async, one without
+		const dsSync = createLocalDataSource([...data], 'id', { useAsyncSort: false });
+		const dsAsync = createLocalDataSource([...data], 'id', {
+			useAsyncSort: true,
+			asyncSortThreshold: 50 // Low threshold to trigger async
+		});
+
+		const query = {
+			pagination: { type: 'offset' as const, offset: 0, limit: 100 },
+			sort: [{ field: 'name', direction: 'asc' as const }]
+		};
+
+		const syncResult = await dsSync.getRows(query);
+		const asyncResult = await dsAsync.getRows(query);
+
+		expect(syncResult.success).toBe(true);
+		expect(asyncResult.success).toBe(true);
+
+		if (syncResult.success && asyncResult.success) {
+			// Results should be identical regardless of which path was used
+			expect(asyncResult.data.rows.map((r) => r.name)).toEqual(
+				syncResult.data.rows.map((r) => r.name)
+			);
+		}
+	});
+});
+
 describe('LocalDataSource - Array Ownership', () => {
 	test('getRows with filter creates new array (can sort in place)', async () => {
 		const data = [
