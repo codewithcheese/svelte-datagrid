@@ -69,7 +69,7 @@
 	 * - Simple deterministic patterns instead of Math.random()
 	 * - Minimal string allocations
 	 */
-	function generateDataSync(count: number): Person[] {
+	function generateData(count: number): Person[] {
 		const data = new Array<Person>(count);
 
 		const deptLen = DEPARTMENTS.length;
@@ -90,49 +90,6 @@
 				startDate: BASE_TIMESTAMP + ((i % 3650) * DAY_MS),
 				isActive: i % 5 !== 0
 			};
-		}
-
-		return data;
-	}
-
-	/**
-	 * Async data generation that yields to browser between chunks.
-	 * Prevents UI freezing for large datasets.
-	 */
-	async function generateDataAsync(count: number): Promise<Person[]> {
-		const CHUNK_SIZE = 50000; // Process 50K rows per frame
-
-		// For small datasets, use sync generation
-		if (count <= CHUNK_SIZE) {
-			return generateDataSync(count);
-		}
-
-		const data = new Array<Person>(count);
-		const deptLen = DEPARTMENTS.length;
-		const firstLen = FIRST_NAMES.length;
-		const lastLen = LAST_NAMES.length;
-
-		for (let start = 0; start < count; start += CHUNK_SIZE) {
-			const end = Math.min(start + CHUNK_SIZE, count);
-
-			for (let i = start; i < end; i++) {
-				data[i] = {
-					id: i + 1,
-					firstName: FIRST_NAMES[i % firstLen],
-					lastName: LAST_NAMES[Math.floor(i / firstLen) % lastLen],
-					age: 22 + (i % 43),
-					email: 'user' + (i + 1) + EMAIL_SUFFIX,
-					department: DEPARTMENTS[i % deptLen],
-					salary: 50000 + ((i * 7919) % 100000),
-					startDate: BASE_TIMESTAMP + ((i % 3650) * DAY_MS),
-					isActive: i % 5 !== 0
-				};
-			}
-
-			// Yield to browser after each chunk
-			if (end < count) {
-				await new Promise((resolve) => requestAnimationFrame(resolve));
-			}
 		}
 
 		return data;
@@ -190,7 +147,7 @@
 
 	// State
 	let rowCount = $state(1000);
-	let data = $state(generateDataSync(rowCount));
+	let data = $state(generateData(rowCount));
 	let selectedCount = $state(0);
 	let isGenerating = $state(false);
 
@@ -198,17 +155,17 @@
 		selectedCount = event.selected.size;
 	}
 
-	async function loadData(count: number) {
+	function loadData(count: number) {
 		if (isGenerating) return;
 		isGenerating = true;
 		rowCount = count;
 
-		try {
-			// Use async generation for large datasets to prevent UI freezing
-			data = await generateDataAsync(count);
-		} finally {
+		// Use setTimeout to let browser paint the "Generating..." message first
+		// then do fast sync generation in one go
+		setTimeout(() => {
+			data = generateData(count);
 			isGenerating = false;
-		}
+		}, 0);
 	}
 </script>
 
