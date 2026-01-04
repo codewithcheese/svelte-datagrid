@@ -12,12 +12,13 @@ The main data grid component.
 
 ## Props
 
-### Required Props
+### Data Props
 
 | Prop | Type | Description |
 |------|------|-------------|
-| `data` | `TData[]` | Array of row data objects |
-| `columns` | `ColumnDef<TData>[]` | Column definitions |
+| `data` | `TData[]` | Array of row data objects. Either `data` or `dataSource` must be provided. When `data` is provided, a `LocalDataSource` is created internally. |
+| `dataSource` | `DataSource<TData>` | Custom DataSource for server-side data or advanced use cases. Either `data` or `dataSource` must be provided. |
+| `columns` | `ColumnDef<TData>[]` | Column definitions (required) |
 
 ### Layout Props
 
@@ -40,24 +41,31 @@ The main data grid component.
 | `sortable` | `boolean` | `true` | Enable column sorting (can be overridden per-column) |
 | `editable` | `boolean` | `false` | Enable cell editing (can be overridden per-column) |
 
-### DataSource Props
+### Auto-Save Behavior
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `dataSource` | `DataSource<TData> \| MutableDataSource<TData>` | `undefined` | DataSource for auto-save. When a MutableDataSource is provided, edits are automatically persisted. |
-| `autoSave` | `boolean` | `true` | Whether to auto-save edits through the DataSource. Set to `false` to handle persistence manually. |
+When `editable` is enabled and the DataSource implements `MutableDataSource` (like `LocalDataSource`), edits are automatically persisted:
 
 ```svelte
 <script>
-  import { DataGrid, createLocalDataSource } from 'svelte-datagrid';
+  import { DataGrid } from 'svelte-datagrid';
 
-  const dataSource = createLocalDataSource(data, 'id');
+  // When you provide data, a LocalDataSource is created automatically
+  // Edits will be auto-saved to this internal data source
+  let data = [
+    { id: 1, name: 'Alice', email: 'alice@example.com' },
+    { id: 2, name: 'Bob', email: 'bob@example.com' }
+  ];
+
+  const columns = [
+    { key: 'id', header: 'ID', width: 60, editable: false },
+    { key: 'name', header: 'Name', width: 150 },
+    { key: 'email', header: 'Email', width: 200 }
+  ];
 </script>
 
 <DataGrid
   {data}
   {columns}
-  {dataSource}
   editable
   getRowId={(row) => row.id}
 />

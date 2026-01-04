@@ -24,11 +24,14 @@ Bind to `gridState` to access the API:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `data` | `TData[]` | Current data array |
-| `processedData` | `TData[]` | Data after sorting/filtering |
-| `totalRows` | `number` | Total row count |
+| `rows` | `TData[]` | Current data from DataSource (after sort/filter) |
+| `data` | `TData[]` | Alias for `rows` (backwards compatibility) |
+| `processedData` | `TData[]` | Alias for `rows` (backwards compatibility) |
+| `totalRowCount` | `number` | Total row count from DataSource |
 | `visibleRows` | `TData[]` | Currently visible (virtualized) rows |
 | `visibleRange` | `{ startIndex: number, endIndex: number }` | Visible row indices |
+| `isLoading` | `boolean` | Whether data is being fetched from DataSource |
+| `queryError` | `string \| null` | Error message from last DataSource query |
 
 ### Column Properties
 
@@ -43,9 +46,11 @@ Bind to `gridState` to access the API:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `selectedRows` | `Set<string \| number>` | Selected row IDs |
-| `selectedCount` | `number` | Number of selected rows |
-| `hasSelection` | `boolean` | Whether any rows are selected |
+| `selectedIds` | `Set<string \| number>` | Selected row IDs |
+| `focusedRowId` | `string \| number \| null` | Currently focused row ID |
+| `focusedRowIndex` | `number` | Currently focused row index (-1 if none) |
+| `focusedColumnKey` | `string \| null` | Currently focused column key |
+| `lastSelectedRowId` | `string \| number \| null` | Last selected row (for range selection) |
 
 ### Scroll Properties
 
@@ -161,33 +166,28 @@ gridState.navigateByPage(-1); // Page up
 
 ## Filter API
 
-### setFilter(column, filter)
+### setFilter(columnKey, value, operator?)
 
 Set a filter for a column.
 
 ```typescript
-// Simple value
-gridState.setFilter('name', { value: 'john' });
+// Simple contains filter (default operator)
+gridState.setFilter('name', 'john');
 
-// With operator
-gridState.setFilter('age', { operator: 'gte', value: 21 });
-gridState.setFilter('status', { operator: 'in', value: ['active', 'pending'] });
+// With specific operator
+gridState.setFilter('age', 21, 'gte');
+gridState.setFilter('status', 'active', 'eq');
+
+// Clear a filter by passing empty value
+gridState.setFilter('name', '');
 ```
 
-### clearFilter(column)
-
-Clear a column's filter.
-
-```typescript
-gridState.clearFilter('name');
-```
-
-### clearAllFilters()
+### clearFilters()
 
 Clear all column filters.
 
 ```typescript
-gridState.clearAllFilters();
+gridState.clearFilters();
 ```
 
 ### setGlobalSearch(term)
@@ -239,27 +239,32 @@ const width = gridState.getColumnWidth('name'); // number
 
 ## Sort API
 
-### setSort(sortSpec)
+### setSort(columnKey, direction, multiSort?)
 
-Set the sort configuration.
+Set the sort for a column.
 
 ```typescript
-// Single column
-gridState.setSort([{ field: 'name', direction: 'asc' }]);
+// Single column sort
+gridState.setSort('name', 'asc');
 
-// Multi-column
-gridState.setSort([
-  { field: 'department', direction: 'asc' },
-  { field: 'name', direction: 'asc' }
-]);
+// Clear sort for a column
+gridState.setSort('name', null);
+
+// Multi-column sort (add to existing sorts)
+gridState.setSort('department', 'asc');
+gridState.setSort('name', 'asc', true); // multiSort = true
 ```
 
-### clearSort()
+### toggleSort(columnKey, multiSort?)
 
-Clear all sorting.
+Toggle sort direction for a column (asc → desc → none).
 
 ```typescript
-gridState.clearSort();
+// Toggle single column
+gridState.toggleSort('name');
+
+// Toggle with multi-sort
+gridState.toggleSort('name', true);
 ```
 
 ---
@@ -320,6 +325,42 @@ const row = gridState.getRowById('row-1');
 
 ---
 
+## Data Management API
+
+### refresh()
+
+Force refresh data from the DataSource. Returns a promise that resolves when complete.
+
+```typescript
+await gridState.refresh();
+```
+
+### waitForData()
+
+Wait for any pending data fetch to complete. Useful for testing or ensuring data is loaded.
+
+```typescript
+await gridState.waitForData();
+```
+
+### updateData(newData)
+
+Update the source data (only works when using the `data` prop, not an external DataSource).
+
+```typescript
+gridState.updateData(newData);
+```
+
+### updateColumns(newColumns)
+
+Update the column definitions.
+
+```typescript
+gridState.updateColumns(newColumns);
+```
+
+---
+
 ## Example Usage
 
 ```svelte
@@ -339,12 +380,12 @@ const row = gridState.getRowById('row-1');
   }
 
   function filterHighValue() {
-    gridState.setFilter('value', { operator: 'gte', value: 1000 });
+    gridState.setFilter('value', 1000, 'gte');
   }
 
   function exportSelected() {
     const selectedData = data.filter(row =>
-      gridState.selectedRows.has(row.id)
+      gridState.selectedIds.has(row.id)
     );
     console.log('Export:', selectedData);
   }

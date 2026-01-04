@@ -43,18 +43,29 @@ The main orchestrator. It:
 
 ### GridState (grid-state.svelte.ts)
 
-The reactive state manager. Uses Svelte 5 runes:
+The reactive state manager. Uses Svelte 5 runes and delegates data operations to a DataSource:
 
 ```typescript
-// State (mutable)
-let data = $state<TData[]>([]);
-let selectedRows = $state(new Set<string | number>());
-let currentSort = $state<SortSpec[]>([]);
+// DataSource is the single source of truth for data
+// Grid-state only manages presentation concerns
 
-// Derived (computed)
-const processedData = $derived(applySort(applyFilter(data)));
-const visibleRows = $derived(processedData.slice(start, end));
+// Query state (what to ask DataSource)
+let sortState = $state<SortState[]>([]);
+let filterState = $state<FilterState[]>([]);
+let globalSearchTerm = $state<string>('');
+
+// Selection state
+let selectedIds = $state<Set<string | number>>(new Set());
+
+// Data from DataSource queries
+let rows = $state<TData[]>([]);
+let isLoading = $state<boolean>(false);
+
+// Derived (computed from DataSource results)
+const visibleRows = $derived(rows.slice(startIndex, endIndex));
 ```
+
+When you provide a `data` array, GridState creates a `LocalDataSource` internally. When you provide a `dataSource`, it uses that directly. All sorting, filtering, and pagination are delegated to the DataSource.
 
 GridState is created once per grid instance and passed via Svelte context.
 
@@ -127,21 +138,28 @@ User Action → Event Handler → GridState Update → Derived Recompute → DOM
 
 ## State Management Pattern
 
-We use a "single source of truth" pattern:
+We use a "single source of truth" pattern with DataSource as the data authority:
 
 ```typescript
-// All state lives in GridState
-const gridState = createGridState({ data, columns, ... });
+// GridState manages presentation; DataSource manages data
+const gridState = createGridState({
+  data,      // or dataSource for custom backends
+  columns,
+  ...
+});
 
-// Components read from state
-const { visibleRows, selectedRows } = gridState;
+// Components read from state (data comes from DataSource)
+const { visibleRows, isLoading, selectedIds } = gridState;
 
 // Components mutate via methods
 gridState.selectRow(id);
-gridState.setSort(sort);
+gridState.setSort(columnKey, 'asc');
+
+// Edits are persisted through DataSource automatically
+await gridState.commitEdit();
 ```
 
-This avoids prop drilling and keeps state changes predictable.
+This avoids prop drilling, keeps state changes predictable, and allows seamless switching between client-side and server-side data.
 
 ## Virtualization Strategy
 
@@ -163,20 +181,26 @@ See [Virtualization](./virtualization.md) for details.
 
 ## Data Source Abstraction
 
-The grid doesn't fetch data directly. Instead:
+The grid uses DataSource as its data layer:
 
 ```
-DataGrid ──query──► DataSource ──fetch──► Backend
-         ◄──rows──             ◄──data──
+┌─────────────┐     GridQueryRequest      ┌──────────────────┐
+│  GridState  │ ─────────────────────────►│    DataSource    │
+│             │                           │                  │
+│ - Sort UI   │ ◄─────────────────────────│ LocalDataSource  │
+│ - Filter UI │     GridQueryResponse     │ PostgresDataSource│
+│ - Selection │                           │ (or custom)      │
+└─────────────┘                           └──────────────────┘
 ```
 
-This allows:
-- Client-side data (LocalDataSource)
-- Server-side data (PostgresDataSource, REST, GraphQL)
-- Consistent API regardless of backend
-- Server-side sort/filter/pagination
+**Key design**: When you provide a `data` array, GridState automatically creates a `LocalDataSource`. When you provide a `dataSource`, it uses that directly. This means:
 
-See [Data Source Architecture](./data-source-architecture.md) for details.
+- **Client-side data**: Just pass `data` prop - sorting/filtering happens in-memory
+- **Server-side data**: Pass `dataSource` prop - operations happen on the server
+- **Consistent API**: Same grid component, same behavior, different backends
+- **Auto-save edits**: If DataSource implements `MutableDataSource`, edits persist automatically
+
+See [Query Module](../query.md) for DataSource API details.
 
 ## Context Usage
 
@@ -255,4 +279,4 @@ src/lib/
 
 - [State Management](./state-management.md) - Deep dive into reactivity
 - [Virtualization](./virtualization.md) - Row virtualization details
-- [Data Source Architecture](./data-source-architecture.md) - Data layer design
+- [Query Module](../query.md) - DataSource API and data layer design
