@@ -175,8 +175,12 @@
 		console.log(`\n⏱️ Starting load of ${count.toLocaleString()} rows...`);
 		const totalStart = performance.now();
 
+		// Step 0: Release old data to help GC before allocating new memory
+		// This prevents memory pressure from accumulating across multiple loads
+		data = [];
+
 		// Use setTimeout to let browser paint the "Generating..." message first
-		// then do fast sync generation in one go
+		// and give GC a chance to reclaim old memory
 		setTimeout(() => {
 			// Step 1: Generate data
 			const genStart = performance.now();

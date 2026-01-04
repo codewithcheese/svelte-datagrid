@@ -910,6 +910,9 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 	 */
 	function updateData(newData: TData[]): void {
 		if (localDataSource) {
+			// Clear current rows first to help GC release memory before new allocation
+			rows = [];
+			totalRowCount = 0;
 			localDataSource.setData(newData);
 			fetchData(); // Refresh
 		}
