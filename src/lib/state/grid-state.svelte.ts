@@ -1085,7 +1085,10 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 			// Position rows so that row at rawRowIndex appears at scrollTop
 			// Row startIndex is at offsetY, row rawRowIndex should be at scrollTop
 			// offsetY + (rawRowIndex - startIndex) * rowHeight ≈ scrollTop
-			return scrollTop - (rawRowIndex - startIndex) * rowHeight;
+			const offset = scrollTop - (rawRowIndex - startIndex) * rowHeight;
+			// Clamp to valid range - offset should be between 0 and scrollTop
+			// (we can't render rows above the scroll container)
+			return Math.max(0, Math.min(scrollTop, offset));
 		},
 		get scrollTop() {
 			return scrollTop;

@@ -566,6 +566,96 @@ describe('Grid State', () => {
 			expect(lastVisibleRow).toBeDefined();
 			expect(lastVisibleRow.id).toBe(100000);
 		});
+
+		test('scaled scroll mode: scrolling to last row with 1M rows (exceeds browser height limit)', async () => {
+			// Generate 1,000,000 rows (40M pixels > 10M MAX_RENDER_HEIGHT)
+			// This triggers "scaled scroll mode" where scroll position is mapped proportionally
+			const largeData: TestRow[] = [];
+			for (let i = 0; i < 1000000; i++) {
+				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
+			}
+
+			const state = createGridState({
+				data: largeData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				rowHeight: 40,
+				overscan: 5
+			});
+			await state.refresh();
+
+			// Set viewport size (400px = 10 visible rows)
+			state.setContainerSize(400, 400);
+
+			// Verify we're in scaled mode (totalHeight > MAX_RENDER_HEIGHT)
+			expect(state.totalHeight).toBe(40000000); // 1M * 40
+			expect(state.renderHeight).toBe(10000000); // Clamped to 10M
+
+			// Scroll to the maximum scroll position (renderHeight - containerHeight)
+			const maxScroll = state.renderHeight - 400;
+			state.setScroll(maxScroll, 0);
+
+			// CRITICAL: visibleRows should NOT be empty
+			expect(state.visibleRows.length).toBeGreaterThan(0);
+
+			// Last visible row should be the very last row (id = 1,000,000)
+			const lastVisibleRow = state.visibleRows[state.visibleRows.length - 1];
+			expect(lastVisibleRow).toBeDefined();
+			expect(lastVisibleRow.id).toBe(1000000);
+		});
+
+		test('scaled scroll mode: scrollToRow works correctly with 1M rows', async () => {
+			const largeData: TestRow[] = [];
+			for (let i = 0; i < 1000000; i++) {
+				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
+			}
+
+			const state = createGridState({
+				data: largeData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				rowHeight: 40,
+				overscan: 5
+			});
+			await state.refresh();
+			state.setContainerSize(400, 400);
+
+			// Navigate to the last row
+			state.scrollToRow(999999, 'start'); // Row 1,000,000 (0-indexed = 999999)
+
+			// Should have scrolled to show the last row
+			expect(state.visibleRows.length).toBeGreaterThan(0);
+			const ids = state.visibleRows.map(r => r.id);
+			expect(ids).toContain(1000000);
+		});
+
+		test('scaled scroll mode: offsetY is always valid (non-negative)', async () => {
+			const largeData: TestRow[] = [];
+			for (let i = 0; i < 1000000; i++) {
+				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
+			}
+
+			const state = createGridState({
+				data: largeData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				rowHeight: 40,
+				overscan: 5
+			});
+			await state.refresh();
+			state.setContainerSize(400, 400);
+
+			// Test various scroll positions
+			const scrollPositions = [0, 1000, 5000000, 9999600];
+			for (const pos of scrollPositions) {
+				state.setScroll(pos, 0);
+				expect(state.offsetY).toBeGreaterThanOrEqual(0);
+				expect(state.offsetY).toBeLessThanOrEqual(pos);
+			}
+		});
 	});
 
 	describe('focus management', () => {

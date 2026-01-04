@@ -402,10 +402,13 @@ export const sortHandler: OperationHandler<
 				let result;
 				if (typeof aVal === 'number' && typeof bVal === 'number') {
 					result = aVal - bVal;
+				} else if (typeof aVal === 'string' && typeof bVal === 'string') {
+					// Use localeCompare for consistent behavior with main thread
+					result = aVal.localeCompare(bVal);
+				} else if (aVal instanceof Date && bVal instanceof Date) {
+					result = aVal.getTime() - bVal.getTime();
 				} else {
-					const aStr = String(aVal);
-					const bStr = String(bVal);
-					result = aStr < bStr ? -1 : aStr > bStr ? 1 : 0;
+					result = String(aVal).localeCompare(String(bVal));
 				}
 
 				if (result !== 0) {

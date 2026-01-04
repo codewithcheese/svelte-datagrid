@@ -826,10 +826,19 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 /**
  * Create a LocalDataSource from an array.
  * Zero-copy: stores reference directly for maximum performance.
+ *
+ * @param data - The data array
+ * @param idField - Field to use as row ID (default: 'id')
+ * @param options - Additional options (useAsyncSort, asyncSortThreshold)
  */
 export function createLocalDataSource<TRow extends Record<string, unknown>>(
 	data: TRow[],
-	idField?: keyof TRow
+	idField?: keyof TRow,
+	options?: Pick<LocalDataSourceOptions<TRow>, 'useAsyncSort' | 'asyncSortThreshold' | 'comparator' | 'filterFn'>
 ): LocalDataSource<TRow> {
-	return new LocalDataSource({ data, idField });
+	return new LocalDataSource({
+		data,
+		idField,
+		...options
+	});
 }
