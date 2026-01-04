@@ -1,12 +1,11 @@
 name = "svelte-datagrid-docs"
+main = ".svelte-kit/cloudflare/_worker.js"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# Build output directory for SvelteKit
-# The adapter outputs to .svelte-kit/cloudflare
 [build]
-command = "npm run build"
+command = "pnpm run build"
 
-# Assets configuration for the documentation site
 [assets]
 directory = ".svelte-kit/cloudflare"
+binding = "ASSETS"
