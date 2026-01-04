@@ -16,6 +16,9 @@ import { describe, expect, test } from 'vitest';
 import DataGrid from '../DataGrid.svelte';
 import type { ColumnDef } from '../../../types/index.js';
 
+// Helper to wait for a specified time (vitest-browser doesn't have page.waitForTimeout)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 // =============================================================================
 // EXACT REPLICA OF DEMO PAGE DATA GENERATION
 // This must match src/routes/demo/+page.svelte exactly
@@ -295,12 +298,12 @@ describe('DataGrid Browser Performance', () => {
 		for (const scrollTo of scrollPositions) {
 			const start = performance.now();
 
-			await body.evaluate((el: HTMLElement, pos: number) => {
-				el.scrollTop = pos * 40; // pos * rowHeight
-			}, scrollTo);
+			// Use direct element access (vitest-browser API)
+			const bodyEl = body.element() as HTMLElement;
+			bodyEl.scrollTop = scrollTo * 40; // pos * rowHeight
 
 			// Wait for re-render
-			await page.waitForTimeout(50);
+			await delay(50);
 
 			const duration = performance.now() - start;
 			scrollTimes.push(duration);
@@ -349,7 +352,7 @@ describe('DataGrid Browser Performance', () => {
 		});
 
 		// Wait for update to complete
-		await page.waitForTimeout(100);
+		await delay(100);
 		const updateDuration = performance.now() - updateStart;
 		console.log(`  Rerender with 1M rows: ${updateDuration.toFixed(2)}ms`);
 
