@@ -8,3 +8,4 @@ command = "pnpm run build"
 
 [assets]
 directory = ".svelte-kit/cloudflare"
+binding = "ASSETS"
