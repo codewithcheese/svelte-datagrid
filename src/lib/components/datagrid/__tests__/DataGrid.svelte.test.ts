@@ -231,6 +231,73 @@ describe('DataGrid Component', () => {
 			const rowCount = await rows.all();
 			expect(rowCount.length).toBeLessThan(50);
 		});
+
+		test('renders correct rows when scrolled to middle of large dataset', async () => {
+			// Generate 10,000 rows (enough to test scrolling without being too slow)
+			const largeData = Array.from({ length: 10000 }, (_, i) => ({
+				id: i + 1,
+				name: `Item ${i + 1}`,
+				value: (i + 1) * 100
+			}));
+
+			render(DataGrid, {
+				props: {
+					data: largeData,
+					columns: mockColumns,
+					height: 400,
+					rowHeight: 40
+				}
+			});
+
+			// Wait for initial render
+			const body = page.getByTestId('datagrid-body');
+			await expect.element(body).toBeInTheDocument();
+
+			// Scroll to middle of dataset (row 5000)
+			// scrollTop = row_index * rowHeight = 5000 * 40 = 200,000px
+			await body.evaluate((el: HTMLElement) => {
+				el.scrollTop = 5000 * 40;
+			});
+
+			// Wait for Svelte to react to scroll and re-render
+			await page.waitForTimeout(100);
+
+			// Verify rows around 5000 are rendered
+			// The visible rows should be around index 5000 (Item 5001 due to 1-based naming)
+			const targetRow = page.getByText('Item 5001');
+			await expect.element(targetRow).toBeInTheDocument();
+		});
+
+		test('renders correct rows when scrolled to end of large dataset', async () => {
+			const largeData = Array.from({ length: 10000 }, (_, i) => ({
+				id: i + 1,
+				name: `Item ${i + 1}`,
+				value: (i + 1) * 100
+			}));
+
+			render(DataGrid, {
+				props: {
+					data: largeData,
+					columns: mockColumns,
+					height: 400,
+					rowHeight: 40
+				}
+			});
+
+			const body = page.getByTestId('datagrid-body');
+			await expect.element(body).toBeInTheDocument();
+
+			// Scroll to near the end (row 9990)
+			await body.evaluate((el: HTMLElement) => {
+				el.scrollTop = 9990 * 40;
+			});
+
+			await page.waitForTimeout(100);
+
+			// Last row (Item 10000) should be visible
+			const lastRow = page.getByText('Item 10000');
+			await expect.element(lastRow).toBeInTheDocument();
+		});
 	});
 
 	describe('sorting', () => {
