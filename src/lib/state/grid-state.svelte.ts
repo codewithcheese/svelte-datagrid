@@ -573,6 +573,33 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		columnOrder = newOrder;
 	}
 
+	function reorderColumn(columnKey: string, targetIndex: number): boolean {
+		const currentIndex = columnOrder.indexOf(columnKey);
+		if (currentIndex < 0 || targetIndex < 0 || targetIndex >= columnOrder.length) {
+			return false;
+		}
+
+		if (currentIndex === targetIndex) {
+			return true;
+		}
+
+		// Check pinning boundaries - can't move pinned column to non-pinned area and vice versa
+		const column = columns.find((c) => c.key === columnKey);
+		const targetColumn = columns.find((c) => c.key === columnOrder[targetIndex]);
+
+		if (column?.pinned !== targetColumn?.pinned) {
+			return false; // Respect pinning boundaries
+		}
+
+		// Perform the reorder
+		const newOrder = [...columnOrder];
+		newOrder.splice(currentIndex, 1);
+		newOrder.splice(targetIndex, 0, columnKey);
+		columnOrder = newOrder;
+
+		return true;
+	}
+
 	// Canvas for text measurement (created lazily)
 	let measureCanvas: HTMLCanvasElement | null = null;
 
@@ -1035,6 +1062,7 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		setColumnWidth,
 		setColumnVisibility,
 		setColumnPinned,
+		reorderColumn,
 		autoSizeColumn,
 		autoSizeAllColumns,
 		setScroll,

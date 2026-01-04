@@ -11,7 +11,7 @@
 	let { headerHeight }: Props = $props();
 
 	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
-	const options = getContext<{ sortable: boolean; resizable: boolean; filterable: boolean }>('datagrid-options');
+	const options = getContext<{ sortable: boolean; resizable: boolean; reorderable: boolean; filterable: boolean }>('datagrid-options');
 
 	// Calculate total header height including filter row
 	const totalHeight = $derived(options.filterable ? headerHeight * 1.8 : headerHeight);
@@ -36,6 +36,7 @@
 						width={gridState.columnWidths.get(column.key) ?? column.width ?? 150}
 						sortable={options.sortable && column.sortable !== false}
 						resizable={options.resizable}
+						reorderable={options.reorderable && column.reorderable !== false}
 						sortDirection={gridState.sortState.find((s) => s.columnKey === column.key)?.direction ?? null}
 					/>
 				{/each}
@@ -53,6 +54,7 @@
 					width={gridState.columnWidths.get(column.key) ?? column.width ?? 150}
 					sortable={options.sortable && column.sortable !== false}
 					resizable={options.resizable}
+					reorderable={options.reorderable && column.reorderable !== false}
 					sortDirection={gridState.sortState.find((s) => s.columnKey === column.key)?.direction ?? null}
 				/>
 			{/each}

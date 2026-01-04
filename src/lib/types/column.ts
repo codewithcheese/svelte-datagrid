@@ -57,6 +57,9 @@ export interface ColumnDef<TData = unknown, TValue = unknown> {
 	/** Pin column to left/right edge */
 	pinned?: ColumnPinning;
 
+	/** Enable/disable column reordering for this column */
+	reorderable?: boolean;
+
 	/** Enable cell editing */
 	editable?: boolean;
 

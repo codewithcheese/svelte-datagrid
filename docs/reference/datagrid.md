@@ -38,6 +38,7 @@ The main data grid component.
 | `filterable` | `boolean` | `false` | Show per-column filter inputs |
 | `searchable` | `boolean` | `false` | Show global search bar |
 | `resizable` | `boolean` | `false` | Enable column resizing |
+| `reorderable` | `boolean` | `false` | Enable column reordering via drag-and-drop |
 | `sortable` | `boolean` | `true` | Enable column sorting (can be overridden per-column) |
 | `editable` | `boolean` | `false` | Enable cell editing (can be overridden per-column) |
 

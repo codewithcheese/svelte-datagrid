@@ -8,10 +8,11 @@
 		width: number;
 		sortable: boolean;
 		resizable: boolean;
+		reorderable: boolean;
 		sortDirection: SortDirection;
 	}
 
-	let { column, width, sortable, resizable, sortDirection }: Props = $props();
+	let { column, width, sortable, resizable, reorderable, sortDirection }: Props = $props();
 
 	const gridState = getContext<GridStateInstance<Record<string, unknown>>>('datagrid');
 
@@ -20,8 +21,13 @@
 	let startX = $state(0);
 	let startWidth = $state(0);
 
+	// Drag state for reordering
+	let isDragging = $state(false);
+	let isDropTarget = $state(false);
+	let dropSide = $state<'left' | 'right' | null>(null);
+
 	function handleSort(event: MouseEvent) {
-		if (!sortable || isResizing) return;
+		if (!sortable || isResizing || isDragging) return;
 		const multiSort = event.shiftKey;
 		gridState.toggleSort(column.key, multiSort);
 	}
@@ -67,18 +73,108 @@
 		gridState.autoSizeColumn(column.key);
 	}
 
+	// Drag handlers for column reordering
+	function handleDragStart(event: DragEvent) {
+		if (!reorderable || isResizing) {
+			event.preventDefault();
+			return;
+		}
+
+		isDragging = true;
+		event.dataTransfer!.effectAllowed = 'move';
+		event.dataTransfer!.setData('text/plain', column.key);
+
+		// Create a drag image
+		const el = event.target as HTMLElement;
+		if (event.dataTransfer?.setDragImage) {
+			event.dataTransfer.setDragImage(el, el.offsetWidth / 2, el.offsetHeight / 2);
+		}
+	}
+
+	function handleDragEnd() {
+		isDragging = false;
+		isDropTarget = false;
+		dropSide = null;
+	}
+
+	function handleDragOver(event: DragEvent) {
+		if (!reorderable) return;
+		event.preventDefault();
+		event.dataTransfer!.dropEffect = 'move';
+
+		// Determine which side of the cell the cursor is on
+		const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+		const midpoint = rect.left + rect.width / 2;
+		dropSide = event.clientX < midpoint ? 'left' : 'right';
+	}
+
+	function handleDragEnter(event: DragEvent) {
+		if (!reorderable) return;
+		const draggedKey = event.dataTransfer?.types.includes('text/plain');
+		if (draggedKey) {
+			isDropTarget = true;
+		}
+	}
+
+	function handleDragLeave(event: DragEvent) {
+		// Only clear if we're leaving the element entirely
+		const relatedTarget = event.relatedTarget as Node;
+		if (!relatedTarget || !(event.currentTarget as HTMLElement).contains(relatedTarget)) {
+			isDropTarget = false;
+			dropSide = null;
+		}
+	}
+
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		isDropTarget = false;
+		dropSide = null;
+
+		const draggedKey = event.dataTransfer?.getData('text/plain');
+		if (!draggedKey || draggedKey === column.key) return;
+
+		// Get the target index based on drop position
+		const columnOrder = gridState.columnOrder;
+		const targetIndex = columnOrder.indexOf(column.key);
+		const draggedIndex = columnOrder.indexOf(draggedKey);
+
+		if (targetIndex < 0 || draggedIndex < 0) return;
+
+		// Adjust target index based on drop side and relative position
+		let newIndex = targetIndex;
+		if (dropSide === 'right') {
+			newIndex = draggedIndex < targetIndex ? targetIndex : targetIndex + 1;
+		} else {
+			newIndex = draggedIndex < targetIndex ? targetIndex - 1 : targetIndex;
+		}
+
+		gridState.reorderColumn(draggedKey, Math.max(0, Math.min(newIndex, columnOrder.length - 1)));
+	}
+
 	const alignClass = $derived(column.align ? `align-${column.align}` : '');
 	const sortableClass = $derived(sortable ? 'sortable' : '');
+	const reorderableClass = $derived(reorderable ? 'reorderable' : '');
 </script>
 
 <div
-	class="datagrid-header-cell {alignClass} {sortableClass} {column.headerClass ?? ''}"
+	class="datagrid-header-cell {alignClass} {sortableClass} {reorderableClass} {column.headerClass ?? ''}"
+	class:dragging={isDragging}
+	class:drop-target={isDropTarget}
+	class:drop-left={isDropTarget && dropSide === 'left'}
+	class:drop-right={isDropTarget && dropSide === 'right'}
 	style="width: {width}px; min-width: {width}px;"
 	role="columnheader"
 	aria-sort={sortDirection === 'asc' ? 'ascending' : sortDirection === 'desc' ? 'descending' : 'none'}
 	tabindex={sortable ? 0 : -1}
+	draggable={reorderable}
 	onclick={handleSort}
 	onkeydown={handleKeyDown}
+	ondragstart={handleDragStart}
+	ondragend={handleDragEnd}
+	ondragover={handleDragOver}
+	ondragenter={handleDragEnter}
+	ondragleave={handleDragLeave}
+	ondrop={handleDrop}
 	data-testid="datagrid-header-cell"
 	data-column-key={column.key}
 >
@@ -172,5 +268,42 @@
 	.datagrid-resize-handle:hover,
 	.datagrid-resize-handle.active {
 		background: var(--datagrid-primary-color, #1976d2);
+	}
+
+	/* Reorderable column styles */
+	.datagrid-header-cell.reorderable {
+		cursor: grab;
+	}
+
+	.datagrid-header-cell.reorderable:active {
+		cursor: grabbing;
+	}
+
+	.datagrid-header-cell.dragging {
+		opacity: 0.5;
+	}
+
+	.datagrid-header-cell.drop-left::before {
+		content: '';
+		position: absolute;
+		left: 0;
+		top: 4px;
+		bottom: 4px;
+		width: 3px;
+		background: var(--datagrid-primary-color, #1976d2);
+		border-radius: 2px;
+		z-index: 10;
+	}
+
+	.datagrid-header-cell.drop-right::after {
+		content: '';
+		position: absolute;
+		right: 0;
+		top: 4px;
+		bottom: 4px;
+		width: 3px;
+		background: var(--datagrid-primary-color, #1976d2);
+		border-radius: 2px;
+		z-index: 10;
 	}
 </style>

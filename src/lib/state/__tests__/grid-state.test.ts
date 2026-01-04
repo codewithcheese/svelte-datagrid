@@ -1078,4 +1078,143 @@ describe('Grid State', () => {
 			expect(state.columnWidths).toEqual(widthsBefore);
 		});
 	});
+
+	describe('Column Reordering', () => {
+		test('reorderColumn moves column to new position', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 150 },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			expect(state.columnOrder).toEqual(['id', 'name', 'age']);
+
+			const result = state.reorderColumn('age', 0);
+
+			expect(result).toBe(true);
+			expect(state.columnOrder).toEqual(['age', 'id', 'name']);
+		});
+
+		test('reorderColumn moves column from earlier to later position', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 150 },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			const result = state.reorderColumn('id', 2);
+
+			expect(result).toBe(true);
+			expect(state.columnOrder).toEqual(['name', 'age', 'id']);
+		});
+
+		test('reorderColumn returns false for unknown column', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 150 },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			const result = state.reorderColumn('unknown', 0);
+
+			expect(result).toBe(false);
+			expect(state.columnOrder).toEqual(['id', 'name', 'age']);
+		});
+
+		test('reorderColumn returns true when column is already at target position', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 150 },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			const result = state.reorderColumn('name', 1);
+
+			expect(result).toBe(true);
+			expect(state.columnOrder).toEqual(['id', 'name', 'age']);
+		});
+
+		test('reorderColumn prevents moving between pinned and non-pinned columns', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60, pinned: 'left' },
+					{ key: 'name', header: 'Name', width: 150 },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			// Try to move non-pinned column to pinned position
+			const result = state.reorderColumn('name', 0);
+
+			expect(result).toBe(false);
+			expect(state.columnOrder).toEqual(['id', 'name', 'age']);
+		});
+
+		test('reorderColumn works within pinned columns', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60, pinned: 'left' },
+					{ key: 'name', header: 'Name', width: 150, pinned: 'left' },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			// Move within pinned columns should work
+			const result = state.reorderColumn('name', 0);
+
+			expect(result).toBe(true);
+			expect(state.columnOrder).toEqual(['name', 'id', 'age']);
+		});
+
+		test('reorderColumn updates visibleColumns order', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'Alice', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 150 },
+					{ key: 'age', header: 'Age', width: 100 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'single'
+			});
+			await state.refresh();
+
+			state.reorderColumn('age', 0);
+
+			const visibleKeys = state.visibleColumns.map(c => c.key);
+			expect(visibleKeys).toEqual(['age', 'id', 'name']);
+		});
+	});
 });

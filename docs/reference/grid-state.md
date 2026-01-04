@@ -39,7 +39,13 @@ Bind to `gridState` to access the API:
 |----------|------|-------------|
 | `columns` | `ColumnDef[]` | Column definitions |
 | `visibleColumns` | `ColumnDef[]` | Visible columns only |
+| `columnOrder` | `string[]` | Current column order (array of column keys) |
 | `columnWidths` | `Map<string, number>` | Current column widths |
+| `pinnedLeftColumns` | `ColumnDef[]` | Columns pinned to the left edge |
+| `pinnedRightColumns` | `ColumnDef[]` | Columns pinned to the right edge |
+| `scrollableColumns` | `ColumnDef[]` | Non-pinned columns (scrollable area) |
+| `pinnedLeftWidth` | `number` | Total width of left-pinned columns |
+| `scrollableWidth` | `number` | Total width of scrollable columns |
 | `totalWidth` | `number` | Total grid width |
 
 ### Selection Properties
@@ -233,6 +239,49 @@ Get a column's current width.
 
 ```typescript
 const width = gridState.getColumnWidth('name'); // number
+```
+
+### autoSizeColumn(columnKey, options?)
+
+Auto-size a column to fit its content.
+
+```typescript
+// Basic auto-size
+gridState.autoSizeColumn('name');
+
+// With options
+gridState.autoSizeColumn('name', {
+  includeHeader: true,  // Include header text in sizing (default: true)
+  maxWidth: 400,        // Maximum width constraint
+  sampleSize: 100       // Number of rows to sample (default: 1000)
+});
+```
+
+### autoSizeAllColumns(options?)
+
+Auto-size all visible columns to fit their content.
+
+```typescript
+gridState.autoSizeAllColumns();
+```
+
+### setColumnPinned(columnKey, pinned)
+
+Pin a column to the left or right edge, or unpin it.
+
+```typescript
+gridState.setColumnPinned('id', 'left');    // Pin to left
+gridState.setColumnPinned('actions', 'right'); // Pin to right
+gridState.setColumnPinned('id', false);     // Unpin
+```
+
+### reorderColumn(columnKey, targetIndex)
+
+Move a column to a new position. Returns `true` if successful, `false` if the move was invalid (e.g., trying to move between pinned and unpinned sections).
+
+```typescript
+// Move 'email' column to be the first column (index 0)
+const success = gridState.reorderColumn('email', 0);
 ```
 
 ---

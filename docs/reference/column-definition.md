@@ -33,7 +33,9 @@ interface ColumnDef<TData, TValue = unknown> {
   sortable?: boolean;
   filterable?: boolean;
   resizable?: boolean;
+  reorderable?: boolean;
   visible?: boolean;
+  pinned?: 'left' | 'right' | false;
 
   // Filtering
   filterType?: 'text' | 'number' | 'date' | 'boolean' | 'select';
@@ -76,7 +78,9 @@ interface ColumnDef<TData, TValue = unknown> {
 | `sortable` | `boolean` | `true` | Enable sorting for this column |
 | `filterable` | `boolean` | `true` | Enable filtering for this column |
 | `resizable` | `boolean` | `true` | Enable resizing for this column |
+| `reorderable` | `boolean` | `true` | Enable drag-and-drop reordering for this column |
 | `visible` | `boolean` | `true` | Column visibility |
+| `pinned` | `'left' \| 'right' \| false` | `false` | Pin column to left or right edge |
 | `editable` | `boolean` | `true` | Enable editing for this column (requires grid `editable` prop) |
 
 ### Filter Properties

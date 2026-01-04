@@ -23,6 +23,8 @@
 		searchable?: boolean;
 		/** Enable column resizing */
 		resizable?: boolean;
+		/** Enable column reordering via drag-and-drop */
+		reorderable?: boolean;
 		/** Enable row selection */
 		selectable?: boolean | SelectionMode;
 		/** Enable cell editing */
@@ -80,6 +82,7 @@
 		filterable = false,
 		searchable = false,
 		resizable = true,
+		reorderable = false,
 		selectable = false,
 		editable = false,
 		overscan = 5,
@@ -163,6 +166,7 @@
 		get sortable() { return sortable; },
 		get filterable() { return filterable; },
 		get resizable() { return resizable; },
+		get reorderable() { return reorderable; },
 		get selectable() { return selectionMode !== 'none'; },
 		get editable() { return editable; },
 		get rowClass() { return rowClass; },
