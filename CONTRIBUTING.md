@@ -3,31 +3,31 @@
 ## Development Setup
 
 ```bash
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
 ## Running Tests
 
 ```bash
 # Run all tests
-npm run test
+pnpm test
 
 # Run tests in watch mode
-npm run test:watch
+pnpm test:watch
 
 # Run tests with UI
-npm run test:ui
+pnpm test:ui
 ```
 
 ## Type Checking
 
 ```bash
 # Check Svelte component types
-npm run check
+pnpm check
 
 # Check test file types
-npx tsc -p tsconfig.test.json --noEmit
+pnpm exec tsc -p tsconfig.test.json --noEmit
 ```
 
 ---
@@ -93,8 +93,8 @@ Before marking a feature complete:
 1. Create a feature branch
 2. Implement the feature with tests
 3. Update documentation following Diátaxis framework
-4. Ensure all tests pass: `npm run test`
-5. Ensure type checking passes: `npm run check`
+4. Ensure all tests pass: `pnpm test`
+5. Ensure type checking passes: `pnpm check`
 6. Submit PR with clear description
 
 ---
