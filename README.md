@@ -251,7 +251,7 @@ pnpm dev
 
 ```sh
 pnpm test        # Run unit tests
-pnpm test:e2e    # Run end-to-end tests
+pnpm e2e         # Run end-to-end tests
 ```
 
 ## Benchmarking
