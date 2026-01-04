@@ -51,8 +51,8 @@ Straightforward, but needs careful state handling.
 
 UI + data model complexity rises; correctness matters.
 
-- [ ] Per-column filters (text/number/date/boolean, operators)
-- [ ] Global quick search (across columns)
+- [x] Per-column filters (text/number/date/boolean, operators)
+- [x] Global quick search (across columns)
 - [ ] Find-in-grid (find next/prev, highlight matches)
 - [ ] Programmatic navigation (scrollToRow, scrollToColumn, jump-to-id)
 - [ ] URL/state sync
@@ -194,6 +194,34 @@ gridState.setColumnVisibility('columnKey', true);  // Show column
 ### Sorting
 
 Click column headers to sort. Hold Shift to multi-sort.
+
+### Filtering
+
+Enable per-column filters with `filterable`:
+
+```svelte
+<DataGrid {data} {columns} filterable />
+```
+
+Supported filter types (set via `column.filterType`):
+- **text**: Contains filter (default)
+- **number**: Numeric comparison
+- **date**: Date picker
+- **boolean**: Yes/No/All dropdown
+- **select**: Dropdown selection
+
+### Global Search
+
+Enable a search bar that searches across all columns:
+
+```svelte
+<DataGrid {data} {columns} searchable />
+```
+
+- Debounced input (300ms) for performance
+- Press Enter for immediate search
+- Press Escape to clear
+- Shows result count when active
 
 ### Query Module (Data Sources)
 

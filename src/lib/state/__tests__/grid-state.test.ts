@@ -387,6 +387,37 @@ describe('Grid State', () => {
 		});
 	});
 
+	describe('global search', () => {
+		test('setGlobalSearch updates globalSearchTerm', () => {
+			const state = createTestGridState();
+
+			state.setGlobalSearch('alice');
+			expect(state.globalSearchTerm).toBe('alice');
+		});
+
+		test('clearGlobalSearch clears the search term', () => {
+			const state = createTestGridState();
+
+			state.setGlobalSearch('alice');
+			state.clearGlobalSearch();
+			expect(state.globalSearchTerm).toBe('');
+		});
+
+		test('empty search term does not affect data', () => {
+			const state = createTestGridState();
+
+			state.setGlobalSearch('');
+			expect(state.processedData.length).toBe(5);
+		});
+
+		test('whitespace-only search is treated as empty', () => {
+			const state = createTestGridState();
+
+			state.setGlobalSearch('   ');
+			expect(state.processedData.length).toBe(5);
+		});
+	});
+
 	describe('column resizing', () => {
 		test('setColumnWidth updates columnWidths', () => {
 			const state = createTestGridState();

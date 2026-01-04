@@ -119,6 +119,7 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 
 	// Filter state
 	let filterState = $state<FilterState[]>([]);
+	let globalSearchTerm = $state<string>('');
 
 	// Selection state
 	let selectedIds = $state<Set<string | number>>(new Set());
@@ -147,7 +148,24 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	const processedData = $derived.by(() => {
 		let result = [...data];
 
-		// Apply filters
+		// Apply global search (across all searchable columns)
+		if (globalSearchTerm.trim()) {
+			const searchLower = globalSearchTerm.toLowerCase().trim();
+			result = result.filter((row) => {
+				// Search across all visible columns (or columns with filterable !== false)
+				for (const column of columns) {
+					if (column.filterable === false) continue;
+					const value = getColumnValue(row, column);
+					const strValue = String(value ?? '').toLowerCase();
+					if (strValue.includes(searchLower)) {
+						return true;
+					}
+				}
+				return false;
+			});
+		}
+
+		// Apply column-specific filters
 		for (const filter of filterState) {
 			const column = columns.find((c) => c.key === filter.columnKey);
 			if (!column) continue;
@@ -261,6 +279,14 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 
 	function clearFilters() {
 		filterState = [];
+	}
+
+	function setGlobalSearch(term: string) {
+		globalSearchTerm = term;
+	}
+
+	function clearGlobalSearch() {
+		globalSearchTerm = '';
 	}
 
 	function selectRow(rowId: string | number, mode: 'toggle' | 'add' | 'remove' | 'set' = 'toggle') {
@@ -608,6 +634,9 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		get lastSelectedRowId() {
 			return lastSelectedRowId;
 		},
+		get globalSearchTerm() {
+			return globalSearchTerm;
+		},
 
 		// Config (non-reactive)
 		rowHeight,
@@ -620,6 +649,8 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		toggleSort,
 		setFilter,
 		clearFilters,
+		setGlobalSearch,
+		clearGlobalSearch,
 		selectRow,
 		selectRange,
 		selectAll,

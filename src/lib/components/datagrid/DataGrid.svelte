@@ -18,6 +18,8 @@
 		sortable?: boolean;
 		/** Enable column filtering */
 		filterable?: boolean;
+		/** Enable global search bar */
+		searchable?: boolean;
 		/** Enable column resizing */
 		resizable?: boolean;
 		/** Enable row selection */
@@ -44,6 +46,7 @@
 	import { createGridState } from '../../state/grid-state.svelte.js';
 	import Header from './core/Header.svelte';
 	import Body from './core/Body.svelte';
+	import SearchBar from './core/SearchBar.svelte';
 
 	type Props = DataGridProps<TData> & {
 		oncellclick?: (event: GridCellClickEvent<TData>) => void;
@@ -64,6 +67,7 @@
 		headerHeight = 48,
 		sortable = true,
 		filterable = false,
+		searchable = false,
 		resizable = true,
 		selectable = false,
 		overscan = 5,
@@ -151,13 +155,22 @@
 	// Container element reference
 	let containerEl: HTMLDivElement | undefined = $state();
 
+	// Calculate effective header height (including filter row and search bar if enabled)
+	const searchBarHeight = 48; // Approximate height of search bar
+	const effectiveHeaderHeight = $derived.by(() => {
+		let height = headerHeight;
+		if (filterable) height = headerHeight * 1.8;
+		if (searchable) height += searchBarHeight;
+		return height;
+	});
+
 	// ResizeObserver for container size
 	$effect(() => {
 		if (!containerEl) return;
 
 		const observer = new ResizeObserver((entries) => {
 			const { width, height } = entries[0].contentRect;
-			gridState.setContainerSize(width, height - headerHeight);
+			gridState.setContainerSize(width, height - effectiveHeaderHeight);
 		});
 
 		observer.observe(containerEl);
@@ -179,6 +192,10 @@
 	aria-colcount={columns.length}
 	data-testid="datagrid"
 >
+	{#if searchable}
+		<SearchBar />
+	{/if}
+
 	<Header {headerHeight} />
 
 	{#if errorMessage}
