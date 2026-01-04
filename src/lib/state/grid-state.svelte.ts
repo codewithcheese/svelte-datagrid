@@ -285,19 +285,8 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		return scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
 	});
 
-	const visibleRange = $derived.by(() => {
-		const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
-		const visibleCount = Math.ceil(containerHeight / rowHeight) + 2 * overscan;
-		const endIndex = Math.min(rows.length - 1, startIndex + visibleCount);
-		return { startIndex, endIndex, visibleCount };
-	});
-
-	const visibleRows = $derived(rows.slice(visibleRange.startIndex, Math.max(0, visibleRange.endIndex + 1)));
-
-	// Use getters instead of $derived for values that need synchronous access in tests
-	// The $derived doesn't update synchronously in non-browser test environments
-
-	const offsetY = $derived(visibleRange.startIndex * rowHeight);
+	// Note: visibleRange, visibleRows, and offsetY are computed inline in getters
+	// for synchronous access in tests. See the return object below.
 
 	// ===========================================
 	// Data Fetching (delegate to DataSource)
