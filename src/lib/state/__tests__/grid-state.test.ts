@@ -629,7 +629,7 @@ describe('Grid State', () => {
 			let callbackArgs: { rowId: any; columnKey: any; newValue: any; oldValue: any } | null = null;
 
 			const state = createGridState({
-				data: testData,
+				data: [...testData],
 				columns: testColumns,
 				getRowId: (row) => row.id,
 				selectionMode: 'multiple',
