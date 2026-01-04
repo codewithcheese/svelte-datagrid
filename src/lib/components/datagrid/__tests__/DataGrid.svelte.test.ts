@@ -10,6 +10,9 @@ import { describe, expect, test } from 'vitest';
 import DataGrid from '../DataGrid.svelte';
 import type { ColumnDef } from '../../../types/index.js';
 
+// Helper to wait for a specified time (vitest-browser doesn't have page.waitForTimeout)
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 interface TestRow {
 	id: number;
 	name: string;
@@ -255,12 +258,11 @@ describe('DataGrid Component', () => {
 
 			// Scroll to middle of dataset (row 5000)
 			// scrollTop = row_index * rowHeight = 5000 * 40 = 200,000px
-			await body.evaluate((el: HTMLElement) => {
-				el.scrollTop = 5000 * 40;
-			});
+			const bodyEl = body.element() as HTMLElement;
+			bodyEl.scrollTop = 5000 * 40;
 
 			// Wait for Svelte to react to scroll and re-render
-			await page.waitForTimeout(100);
+			await delay(100);
 
 			// Verify rows around 5000 are rendered
 			// The visible rows should be around index 5000 (Item 5001 due to 1-based naming)
@@ -288,11 +290,10 @@ describe('DataGrid Component', () => {
 			await expect.element(body).toBeInTheDocument();
 
 			// Scroll to near the end (row 9990)
-			await body.evaluate((el: HTMLElement) => {
-				el.scrollTop = 9990 * 40;
-			});
+			const bodyEl = body.element() as HTMLElement;
+			bodyEl.scrollTop = 9990 * 40;
 
-			await page.waitForTimeout(100);
+			await delay(100);
 
 			// Last row (Item 10000) should be visible
 			const lastRow = page.getByText('Item 10000');

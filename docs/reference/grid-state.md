@@ -71,40 +71,39 @@ Bind to `gridState` to access the API:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `currentSort` | `SortSpec[]` | Current sort configuration |
+| `sortState` | `SortState[]` | Current sort configuration. Each item has `{ columnKey: string, direction: 'asc' \| 'desc' \| null }` |
 
 ### Filter Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `filters` | `Map<string, FilterValue>` | Column filters |
+| `filterState` | `FilterState[]` | Column filters. Each item has `{ columnKey: string, value: unknown, operator: FilterOperator }` |
 | `globalSearchTerm` | `string` | Global search term |
 
 ---
 
 ## Selection API
 
-### selectRow(rowId, options?)
+### selectRow(rowId, mode?)
 
 Select a single row.
 
 ```typescript
 gridState.selectRow('row-1');
 
-// Options
-gridState.selectRow('row-1', {
-  toggle: true,      // Toggle instead of select
-  extend: true,      // Add to selection (don't clear)
-  range: true        // Select range from last selected
-});
+// With mode
+gridState.selectRow('row-1', 'toggle');  // Toggle selection
+gridState.selectRow('row-1', 'add');     // Add to selection
+gridState.selectRow('row-1', 'remove');  // Remove from selection
+gridState.selectRow('row-1', 'set');     // Clear others, select this one
 ```
 
-### selectRange(startId, endId)
+### selectRange(targetRowId)
 
-Select a range of rows.
+Select a range of rows from the last selected row to the target row.
 
 ```typescript
-gridState.selectRange('row-1', 'row-5');
+gridState.selectRange('row-5'); // Selects from lastSelectedRowId to 'row-5'
 ```
 
 ### selectAll()
@@ -135,37 +134,46 @@ const selected = gridState.isRowSelected('row-1'); // boolean
 
 ## Navigation API
 
-### navigateRow(index)
+### navigateRow(offset, select?, extendSelection?)
 
-Navigate to a specific row by index.
+Navigate by a number of rows relative to the current focused row.
 
 ```typescript
-gridState.navigateRow(50); // Go to row 50
+gridState.navigateRow(1);   // Move down one row
+gridState.navigateRow(-1);  // Move up one row
+gridState.navigateRow(5);   // Move down 5 rows
+
+// With selection
+gridState.navigateRow(1, true);        // Move down and select
+gridState.navigateRow(1, true, true);  // Move down and extend selection (for Shift+Arrow)
 ```
 
-### navigateToFirst()
+### navigateToFirst(select?)
 
 Navigate to the first row.
 
 ```typescript
 gridState.navigateToFirst();
+gridState.navigateToFirst(true); // Navigate and select
 ```
 
-### navigateToLast()
+### navigateToLast(select?)
 
 Navigate to the last row.
 
 ```typescript
 gridState.navigateToLast();
+gridState.navigateToLast(true); // Navigate and select
 ```
 
-### navigateByPage(direction)
+### navigateByPage(direction, select?)
 
 Navigate by one page.
 
 ```typescript
-gridState.navigateByPage(1);  // Page down
-gridState.navigateByPage(-1); // Page up
+gridState.navigateByPage('down');        // Page down
+gridState.navigateByPage('up');          // Page up
+gridState.navigateByPage('down', true);  // Page down and select
 ```
 
 ---
@@ -225,7 +233,7 @@ gridState.setColumnVisibility('email', false); // Hide
 gridState.setColumnVisibility('email', true);  // Show
 ```
 
-### setColumnWidth(column, width)
+### setColumnWidth(columnKey, width)
 
 Set a column's width.
 
@@ -233,12 +241,12 @@ Set a column's width.
 gridState.setColumnWidth('name', 250);
 ```
 
-### getColumnWidth(column)
+### Getting column width
 
-Get a column's current width.
+Use the `columnWidths` property (a Map) to get current widths:
 
 ```typescript
-const width = gridState.getColumnWidth('name'); // number
+const width = gridState.columnWidths.get('name'); // number | undefined
 ```
 
 ### autoSizeColumn(columnKey, options?)
@@ -320,28 +328,35 @@ gridState.toggleSort('name', true);
 
 ## Scroll API
 
-### scrollToRow(index)
+### scrollToRow(index, align?)
 
 Scroll to bring a row into view.
 
 ```typescript
 gridState.scrollToRow(100);
+
+// With alignment
+gridState.scrollToRow(100, 'start');   // Align row to top
+gridState.scrollToRow(100, 'center');  // Center row in viewport
+gridState.scrollToRow(100, 'end');     // Align row to bottom
+gridState.scrollToRow(100, 'nearest'); // Scroll minimum distance (default)
 ```
 
-### scrollToTop()
+### Scrolling to top/bottom
 
-Scroll to the top.
+Use `scrollToRow` with first or last index:
 
 ```typescript
-gridState.scrollToTop();
+gridState.scrollToRow(0);                          // Scroll to top
+gridState.scrollToRow(gridState.totalRowCount - 1); // Scroll to bottom
 ```
 
-### scrollToBottom()
+### setScroll(top, left)
 
-Scroll to the bottom.
+Set scroll position directly.
 
 ```typescript
-gridState.scrollToBottom();
+gridState.setScroll(0, 0); // Scroll to top-left
 ```
 
 ---
@@ -350,26 +365,32 @@ gridState.scrollToBottom();
 
 ### getRowId(row, index)
 
-Get the ID for a row.
+Get the ID for a row using the configured `getRowId` function.
 
 ```typescript
 const id = gridState.getRowId(row, 0);
 ```
 
-### getRowByIndex(index)
+### Getting rows by index or ID
 
-Get a row by its index.
+Use the `rows` property to access data:
 
 ```typescript
-const row = gridState.getRowByIndex(50);
+// Get row by index
+const row = gridState.rows[50];
+
+// Find row by ID
+const row = gridState.rows.find((r, i) => gridState.getRowId(r, i) === 'row-1');
 ```
 
-### getRowById(id)
+### setFocus(rowId, columnKey)
 
-Get a row by its ID.
+Set focus to a specific cell.
 
 ```typescript
-const row = gridState.getRowById('row-1');
+gridState.setFocus('row-1', 'name');
+gridState.setFocus('row-1', null); // Focus row only
+gridState.setFocus(null, null);    // Clear focus
 ```
 
 ---
@@ -423,9 +444,9 @@ gridState.updateColumns(newColumns);
 
   function selectActiveUsers() {
     gridState.clearSelection();
-    data
+    gridState.rows
       .filter(row => row.active)
-      .forEach(row => gridState.selectRow(row.id, { extend: true }));
+      .forEach(row => gridState.selectRow(row.id, 'add'));
   }
 
   function filterHighValue() {
@@ -433,7 +454,7 @@ gridState.updateColumns(newColumns);
   }
 
   function exportSelected() {
-    const selectedData = data.filter(row =>
+    const selectedData = gridState.rows.filter(row =>
       gridState.selectedIds.has(row.id)
     );
     console.log('Export:', selectedData);

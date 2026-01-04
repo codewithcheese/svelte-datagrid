@@ -37,7 +37,7 @@ The main data grid component.
 | `selectable` | `boolean \| 'single' \| 'multiple'` | `false` | Enable row selection |
 | `filterable` | `boolean` | `false` | Show per-column filter inputs |
 | `searchable` | `boolean` | `false` | Show global search bar |
-| `resizable` | `boolean` | `false` | Enable column resizing |
+| `resizable` | `boolean` | `true` | Enable column resizing |
 | `reorderable` | `boolean` | `false` | Enable column reordering via drag-and-drop |
 | `sortable` | `boolean` | `true` | Enable column sorting (can be overridden per-column) |
 | `editable` | `boolean` | `false` | Enable cell editing (can be overridden per-column) |
@@ -148,15 +148,16 @@ When `editable` is enabled and the DataSource implements `MutableDataSource` (li
 
 | Event | Payload | Description |
 |-------|---------|-------------|
-| `onSortChange` | `SortSpec[]` | Sort configuration changed |
+| `onsortchange` | `GridSortEvent` | Sort configuration changed |
 
 ```svelte
 <DataGrid
   {data}
   {columns}
-  onSortChange={(sort) => {
-    console.log('Sort:', sort);
-    // [{ field: 'name', direction: 'asc' }]
+  onsortchange={(event) => {
+    console.log('Column:', event.columnKey);
+    console.log('Direction:', event.direction); // 'asc' | 'desc'
+    console.log('Multi-sort:', event.multiSort);
   }}
 />
 ```

@@ -8,13 +8,19 @@
 2. **Run type checking**: `pnpm check` - No TypeScript errors
 3. **Update documentation** following the Diátaxis framework (see below)
 
+> **Important**: Always run tests locally before committing. If Playwright is not installed, run `pnpm exec playwright install chromium` first.
+
 ## Key Commands
 
 | Command | Purpose |
 |---------|---------|
 | `pnpm test` | Run all tests |
-| `pnpm check` | TypeScript type checking |
+| `pnpm check` | TypeScript type checking + doc link validation |
+| `pnpm check:links` | Check documentation links only (requires lychee) |
 | `pnpm dev` | Development server |
+
+> **Note**: Link checking requires [lychee](https://github.com/lycheeverse/lychee) to be installed.
+> Install via: `brew install lychee` (macOS) or `cargo install lychee` (Rust)
 
 ## Architecture Patterns
 

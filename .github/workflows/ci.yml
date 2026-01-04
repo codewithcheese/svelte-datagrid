@@ -8,50 +8,59 @@ on:
 
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install
-
-      - name: Type check
-        run: pnpm check
 
       - name: Run unit tests
         run: pnpm test -- --project unit --run
 
-  build:
+  typecheck:
+    name: Type Check
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
           cache: 'pnpm'
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Build
-        run: pnpm build
+      - name: Run type check
+        run: pnpm exec svelte-kit sync && pnpm exec svelte-check --tsconfig ./tsconfig.json
+
+  links:
+    name: Check Links
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check documentation links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --verbose --no-progress --offline 'docs/**/*.md' 'README.md'
+          fail: true
