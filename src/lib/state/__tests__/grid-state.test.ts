@@ -978,4 +978,104 @@ describe('Grid State', () => {
 			expect(state.scrollableColumns.length).toBe(3);
 		});
 	});
+
+	describe('auto-size columns', () => {
+		test('autoSizeColumn updates column width based on content', async () => {
+			const state = createGridState({
+				data: [
+					{ id: 1, name: 'Short', age: 30 },
+					{ id: 2, name: 'A Very Long Name Here', age: 25 }
+				],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 100 },
+					{ key: 'age', header: 'Age', width: 60 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			const initialWidth = state.columnWidths.get('name');
+			expect(initialWidth).toBe(100);
+
+			state.autoSizeColumn('name');
+
+			// Width should have changed (exact value depends on font measurement)
+			const newWidth = state.columnWidths.get('name');
+			expect(newWidth).toBeGreaterThan(100);
+		});
+
+		test('autoSizeColumn respects minWidth', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'X', age: 30 }], // Very short content
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'N', width: 100, minWidth: 80 }, // Short header too
+					{ key: 'age', header: 'Age', width: 60 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			state.autoSizeColumn('name');
+
+			const newWidth = state.columnWidths.get('name');
+			expect(newWidth).toBeGreaterThanOrEqual(80); // Should respect minWidth
+		});
+
+		test('autoSizeColumn respects maxWidth', async () => {
+			const state = createGridState({
+				data: [{ id: 1, name: 'A Very Very Very Long Name That Is Way Too Wide', age: 30 }],
+				columns: [
+					{ key: 'id', header: 'ID', width: 60 },
+					{ key: 'name', header: 'Name', width: 100, maxWidth: 150 },
+					{ key: 'age', header: 'Age', width: 60 }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			state.autoSizeColumn('name');
+
+			const newWidth = state.columnWidths.get('name');
+			expect(newWidth).toBeLessThanOrEqual(150); // Should respect maxWidth
+		});
+
+		test('autoSizeAllColumns sizes all visible columns', async () => {
+			const state = createGridState({
+				data: [
+					{ id: 12345, name: 'Short', age: 30 },
+					{ id: 67890, name: 'Much Longer Name Here', age: 99999 }
+				],
+				columns: [
+					{ key: 'id', header: 'ID', width: 30 }, // Very small initial width
+					{ key: 'name', header: 'Name', width: 30 }, // Very small initial width
+					{ key: 'age', header: 'Age', width: 30 } // Very small initial width
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+			await state.refresh();
+
+			state.autoSizeAllColumns();
+
+			// All columns should have been resized larger (content is wider than 30px)
+			expect(state.columnWidths.get('id')).toBeGreaterThan(30);
+			expect(state.columnWidths.get('name')).toBeGreaterThan(30);
+			expect(state.columnWidths.get('age')).toBeGreaterThan(30);
+		});
+
+		test('autoSizeColumn does nothing for unknown column', async () => {
+			const state = await createTestGridState();
+			const widthsBefore = new Map(state.columnWidths);
+
+			state.autoSizeColumn('unknown');
+
+			// Widths should be unchanged
+			expect(state.columnWidths).toEqual(widthsBefore);
+		});
+	});
 });

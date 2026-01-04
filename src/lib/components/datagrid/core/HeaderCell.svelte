@@ -61,6 +61,12 @@
 		window.removeEventListener('mouseup', handleResizeEnd);
 	}
 
+	function handleResizeDoubleClick(event: MouseEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		gridState.autoSizeColumn(column.key);
+	}
+
 	const alignClass = $derived(column.align ? `align-${column.align}` : '');
 	const sortableClass = $derived(sortable ? 'sortable' : '');
 </script>
@@ -93,10 +99,12 @@
 			class="datagrid-resize-handle"
 			class:active={isResizing}
 			onmousedown={handleResizeStart}
+			ondblclick={handleResizeDoubleClick}
 			role="separator"
 			aria-orientation="vertical"
-			aria-label="Resize column {column.header}"
+			aria-label="Resize column {column.header}. Double-click to auto-size."
 			tabindex={-1}
+			title="Drag to resize, double-click to auto-size"
 		></div>
 	{/if}
 </div>

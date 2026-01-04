@@ -573,6 +573,94 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		columnOrder = newOrder;
 	}
 
+	// Canvas for text measurement (created lazily)
+	let measureCanvas: HTMLCanvasElement | null = null;
+
+	function measureTextWidth(text: string, font: string): number {
+		if (typeof document === 'undefined') {
+			// Fallback for SSR/node - rough estimate based on character count
+			return text.length * 8;
+		}
+		if (!measureCanvas) {
+			measureCanvas = document.createElement('canvas');
+		}
+		const ctx = measureCanvas.getContext('2d')!;
+		ctx.font = font;
+		return ctx.measureText(text).width;
+	}
+
+	interface AutoSizeOptions {
+		/** Include header text in width calculation (default: true) */
+		includeHeader?: boolean;
+		/** Maximum width to apply (respects column.maxWidth if set) */
+		maxWidth?: number;
+		/** Sample size for large datasets (default: 1000) */
+		sampleSize?: number;
+	}
+
+	function autoSizeColumn(columnKey: string, options: AutoSizeOptions = {}): void {
+		const column = columns.find((c) => c.key === columnKey);
+		if (!column) return;
+
+		const { includeHeader = true, maxWidth, sampleSize = 1000 } = options;
+
+		// Font settings (should match CSS)
+		const cellFont = '14px system-ui, -apple-system, sans-serif';
+		const headerFont = '600 14px system-ui, -apple-system, sans-serif';
+		const padding = 24; // Cell padding (12px each side)
+		const sortIconWidth = 20; // Space for sort indicator
+
+		let maxContentWidth = 0;
+
+		// Measure header
+		if (includeHeader) {
+			const headerWidth = measureTextWidth(column.header, headerFont) + sortIconWidth;
+			maxContentWidth = Math.max(maxContentWidth, headerWidth);
+		}
+
+		// Sample rows for large datasets
+		let rowsToMeasure = rows;
+		if (rows.length > sampleSize) {
+			// Sample evenly across the dataset
+			const step = Math.floor(rows.length / sampleSize);
+			rowsToMeasure = [];
+			for (let i = 0; i < rows.length && rowsToMeasure.length < sampleSize; i += step) {
+				rowsToMeasure.push(rows[i]);
+			}
+		}
+
+		// Measure each row's cell value
+		for (const row of rowsToMeasure) {
+			const value = getColumnValue(row, column);
+			const displayValue = column.formatter ? column.formatter(value as never) : formatValue(value);
+			const width = measureTextWidth(displayValue, cellFont);
+			maxContentWidth = Math.max(maxContentWidth, width);
+		}
+
+		// Apply width with constraints
+		let newWidth = maxContentWidth + padding;
+		const minWidth = column.minWidth ?? 50;
+		const effectiveMaxWidth = Math.min(maxWidth ?? Infinity, column.maxWidth ?? Infinity);
+
+		newWidth = Math.max(minWidth, Math.min(effectiveMaxWidth, newWidth));
+		setColumnWidth(columnKey, newWidth);
+	}
+
+	function autoSizeAllColumns(options: AutoSizeOptions = {}): void {
+		for (const column of columns) {
+			if (!hiddenColumns.has(column.key)) {
+				autoSizeColumn(column.key, options);
+			}
+		}
+	}
+
+	// Helper to format values for display
+	function formatValue(value: unknown): string {
+		if (value === null || value === undefined) return '';
+		if (value instanceof Date) return value.toLocaleDateString();
+		return String(value);
+	}
+
 	// Viewport actions
 	function setScroll(top: number, left: number) {
 		// Compute totals - scrollLeft only applies to scrollable (non-pinned) columns
@@ -947,6 +1035,8 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		setColumnWidth,
 		setColumnVisibility,
 		setColumnPinned,
+		autoSizeColumn,
+		autoSizeAllColumns,
 		setScroll,
 		setContainerSize,
 		scrollToRow,
