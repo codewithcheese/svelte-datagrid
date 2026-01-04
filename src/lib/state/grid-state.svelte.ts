@@ -285,8 +285,10 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		return scrollableColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? col.width ?? 150), 0);
 	});
 
-	// Note: visibleRange, visibleRows, and offsetY are computed inline in getters
-	// for synchronous access in tests. See the return object below.
+	// Render height clamped to browser-safe maximum
+	// Browsers struggle with elements > ~15M pixels (varies by browser)
+	// We use 10M as a safe limit that works across all browsers
+	const MAX_RENDER_HEIGHT = 10_000_000;
 
 	// ===========================================
 	// Data Fetching (delegate to DataSource)
@@ -979,6 +981,12 @@ export function createGridState<TData extends Record<string, unknown>>(options: 
 		},
 		get totalHeight() {
 			return totalRowCount * rowHeight;
+		},
+		// Render height clamped to browser-safe maximum (10M pixels)
+		// Use this for DOM element height to prevent browser layout issues
+		get renderHeight() {
+			const total = totalRowCount * rowHeight;
+			return Math.min(total, MAX_RENDER_HEIGHT);
 		},
 		get totalWidth() {
 			return visibleColumns.reduce((sum, col) => sum + (columnWidths.get(col.key) ?? 150), 0);

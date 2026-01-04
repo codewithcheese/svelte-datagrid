@@ -26,6 +26,40 @@
 	const BASE_TIMESTAMP = new Date(2015, 0, 1).getTime();
 	const DAY_MS = 86400000;
 
+	// Fast date formatter - avoids creating Date objects for each cell
+	// Pre-compute the base date components
+	const BASE_DATE = new Date(2015, 0, 1);
+	const BASE_YEAR = BASE_DATE.getFullYear();
+	const DAYS_IN_MONTHS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+	function formatTimestamp(timestamp: number): string {
+		// Calculate days since base date
+		const daysSinceBase = Math.floor((timestamp - BASE_TIMESTAMP) / DAY_MS);
+
+		// Quick calculation for year/month/day (simplified, assumes 365-day years)
+		let year = BASE_YEAR;
+		let remainingDays = daysSinceBase;
+
+		while (remainingDays >= 365) {
+			remainingDays -= 365;
+			year++;
+		}
+
+		let month = 0;
+		while (month < 11 && remainingDays >= DAYS_IN_MONTHS[month]) {
+			remainingDays -= DAYS_IN_MONTHS[month];
+			month++;
+		}
+
+		const day = remainingDays + 1;
+		return `${month + 1}/${day}/${year}`;
+	}
+
+	// Fast currency formatter - avoids toLocaleString overhead
+	function formatCurrency(value: number): string {
+		return '$' + value.toLocaleString();
+	}
+
 	/**
 	 * Ultra-fast data generation optimized for 10M+ rows.
 	 * Uses:
@@ -96,13 +130,13 @@
 			header: 'Salary',
 			width: 120,
 			align: 'right',
-			formatter: (value) => '$' + value.toLocaleString()
+			formatter: formatCurrency
 		}),
 		columnHelper.accessor('startDate', {
 			header: 'Start Date',
 			width: 120,
-			// Format timestamp as date string
-			formatter: (value) => new Date(value).toLocaleDateString()
+			// Fast timestamp formatter - no Date object creation
+			formatter: formatTimestamp
 		}),
 		columnHelper.accessor('isActive', {
 			header: 'Active',
