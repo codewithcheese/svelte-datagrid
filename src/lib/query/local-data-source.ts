@@ -79,7 +79,7 @@ export interface LocalDataSourceOptions<TRow> {
 	 * Enable Web Worker for sorting to avoid blocking the main thread.
 	 * When enabled, sorting is performed in a background thread for datasets
 	 * larger than asyncSortThreshold rows.
-	 * Default: true (if Web Workers are available)
+	 * Default: true
 	 */
 	useAsyncSort?: boolean;
 
@@ -175,8 +175,8 @@ export class LocalDataSource<TRow extends Record<string, unknown>>
 		this.customFilterFn = options.filterFn;
 
 		// Async operations configuration
-		// Default to false to avoid breaking existing behavior - users can opt in
-		this.useAsyncSort = options.useAsyncSort ?? false;
+		// Default to true to avoid blocking the main thread on large datasets
+		this.useAsyncSort = options.useAsyncSort ?? true;
 		this.asyncSortThreshold = options.asyncSortThreshold ?? 10000;
 
 		// Initialize async operation manager if async sorting is enabled
