@@ -21,6 +21,7 @@ How-to guides are for developers who **know what they want to do** but need to k
 
 | Guide | Description |
 |-------|-------------|
+| [Editing](./editing.md) | Enable inline cell editing with validation |
 | [Filtering](./filtering.md) | Add per-column filters and global search |
 | [Keyboard Navigation](./keyboard-navigation.md) | Navigate with arrow keys and shortcuts |
 | [Column Resizing](./column-resizing.md) | Resize columns by dragging |

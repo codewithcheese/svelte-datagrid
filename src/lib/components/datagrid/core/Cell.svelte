@@ -1,15 +1,22 @@
 <script lang="ts">
+	import { getContext } from 'svelte';
 	import type { ColumnDef } from '../../../types/index.js';
+	import type { GridStateInstance } from '../../../state/grid-state.svelte.js';
+	import CellEditor from './CellEditor.svelte';
 
 	interface Props {
 		row: unknown;
 		column: ColumnDef<unknown>;
 		width: number;
 		rowIndex: number;
+		rowId: string | number;
+		editable: boolean;
 		onCellClick: (value: unknown, event: MouseEvent) => void;
 	}
 
-	let { row, column, width, rowIndex, onCellClick }: Props = $props();
+	let { row, column, width, rowIndex, rowId, editable, onCellClick }: Props = $props();
+
+	const gridState = getContext<GridStateInstance<unknown>>('datagrid');
 
 	// Get cell value using accessor
 	const value = $derived.by(() => {
@@ -21,6 +28,12 @@
 		}
 		return (row as Record<string, unknown>)[column.key];
 	});
+
+	// Check if this cell is being edited
+	const isEditingThis = $derived(gridState.isEditing(rowId, column.key));
+
+	// Check if cell is editable
+	const isCellEditable = $derived(editable && column.editable !== false);
 
 	// Format value for display
 	const displayValue = $derived.by(() => {
@@ -65,25 +78,43 @@
 		onCellClick(value, event);
 	}
 
+	function handleDoubleClick(event: MouseEvent) {
+		if (isCellEditable && !isEditingThis) {
+			event.preventDefault();
+			event.stopPropagation();
+			gridState.startEdit(rowId, column.key);
+		}
+	}
+
 	function handleKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Enter' || event.key === ' ') {
 			event.preventDefault();
 			onCellClick(value, event as unknown as MouseEvent);
+		} else if (event.key === 'F2' && isCellEditable && !isEditingThis) {
+			// F2 to start editing (Excel-like behavior)
+			event.preventDefault();
+			event.stopPropagation();
+			gridState.startEdit(rowId, column.key);
 		}
 	}
 </script>
 
 <div
 	class="datagrid-cell {alignClass} {cellClass}"
+	class:editable={isCellEditable}
+	class:editing={isEditingThis}
 	style="width: {width}px; min-width: {width}px;"
 	role="gridcell"
 	tabindex={-1}
 	onclick={handleClick}
+	ondblclick={handleDoubleClick}
 	onkeydown={handleKeyDown}
 	data-testid="datagrid-cell"
 	data-column-key={column.key}
 >
-	{#if column.cellRenderer}
+	{#if isEditingThis}
+		<CellEditor {column} {value} {rowId} {width} />
+	{:else if column.cellRenderer}
 		{@const CellRenderer = column.cellRenderer}
 		<CellRenderer {value} {row} {column} />
 	{:else}
@@ -101,6 +132,15 @@
 		overflow: hidden;
 		box-sizing: border-box;
 		flex-shrink: 0;
+	}
+
+	.datagrid-cell.editable {
+		cursor: text;
+	}
+
+	.datagrid-cell.editing {
+		padding: 0;
+		overflow: visible;
 	}
 
 	.datagrid-cell.align-center {

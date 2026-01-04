@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { ColumnDef, GridCellClickEvent, GridRowClickEvent, GridSortEvent, GridSelectionChangeEvent, SelectionMode } from '../../types/index.js';
+	import type { ColumnDef, GridCellClickEvent, GridRowClickEvent, GridSortEvent, GridSelectionChangeEvent, GridCellEditEvent, SelectionMode } from '../../types/index.js';
 
 	export interface DataGridProps<TData> {
 		/** Data rows to display */
@@ -24,6 +24,8 @@
 		resizable?: boolean;
 		/** Enable row selection */
 		selectable?: boolean | SelectionMode;
+		/** Enable cell editing */
+		editable?: boolean;
 		/** Number of rows to render outside the viewport */
 		overscan?: number;
 		/** Function to get unique row ID */
@@ -53,6 +55,8 @@
 		onrowclick?: (event: GridRowClickEvent<TData>) => void;
 		onsortchange?: (event: GridSortEvent) => void;
 		onselectionchange?: (event: GridSelectionChangeEvent) => void;
+		oncelledit?: (event: GridCellEditEvent<TData>) => void;
+		oncellvalidate?: (rowId: string | number, columnKey: string, value: unknown) => string | null;
 		loadingSnippet?: Snippet;
 		emptySnippet?: Snippet;
 		errorSnippet?: Snippet<[string]>;
@@ -70,6 +74,7 @@
 		searchable = false,
 		resizable = true,
 		selectable = false,
+		editable = false,
 		overscan = 5,
 		getRowId,
 		class: className = '',
@@ -81,6 +86,8 @@
 		onrowclick,
 		onsortchange,
 		onselectionchange,
+		oncelledit,
+		oncellvalidate,
 		loadingSnippet,
 		emptySnippet,
 		errorSnippet
@@ -115,7 +122,26 @@
 				added: [],
 				removed: []
 			});
-		}
+		},
+		onCellEdit: (rowId, columnKey, newValue, oldValue) => {
+			// Find the row and column for the event
+			const rowIndex = gridState.processedData.findIndex((row, i) => gridState.getRowId(row, i) === rowId);
+			const row = rowIndex >= 0 ? gridState.processedData[rowIndex] : undefined;
+			const column = columns.find(c => c.key === columnKey);
+
+			if (row && column) {
+				oncelledit?.({
+					row: row as TData,
+					rowIndex,
+					rowId,
+					column: column as ColumnDef<TData>,
+					columnKey,
+					oldValue,
+					newValue
+				});
+			}
+		},
+		onCellValidate: oncellvalidate
 	});
 
 	// Provide grid state to child components
@@ -128,6 +154,7 @@
 		get filterable() { return filterable; },
 		get resizable() { return resizable; },
 		get selectable() { return selectionMode !== 'none'; },
+		get editable() { return editable; },
 		get rowClass() { return rowClass; },
 		get oncellclick() { return oncellclick; },
 		get onrowclick() { return onrowclick; }

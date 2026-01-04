@@ -36,10 +36,10 @@ Straightforward but needs careful state handling.
 | Sort indicators | Core | Complete | Visual arrows |
 | Multi-column sorting | Core | Pending | Shift+click for secondary |
 | Row selection (single) | Core | Complete | Click to select |
-| Row selection (multi) | Core | Pending | Ctrl+click multiple |
+| Row selection (multi) | Core | Complete | Ctrl+click multiple |
 | Checkbox selection | Core | Pending | Selection column |
-| Select all visible | Core | Pending | Header checkbox |
-| Column show/hide | Core | Pending | Toggle visibility |
+| Select all visible | Core | Complete | Header checkbox |
+| Column show/hide | Core | Complete | Toggle visibility |
 | Column reorder | Core | Pending | Drag-and-drop |
 | Reset to default | Core | Pending | Restore column config |
 | Column resizing | Core | Complete | Drag to resize |
@@ -55,14 +55,14 @@ UI + data model complexity rises; correctness matters.
 
 | Feature | Type | Status | Description |
 |---------|------|--------|-------------|
-| Text column filter | Core | Pending | Filter by text input |
-| Number column filter | Core | Pending | Numeric range filter |
+| Text column filter | Core | Complete | Filter by text input |
+| Number column filter | Core | Complete | Numeric range filter |
 | Date column filter | Core | Pending | Date range filter |
-| Boolean column filter | Core | Pending | True/false filter |
-| Filter operators | Core | Pending | equals, contains, startsWith |
-| Global quick search | Core | Pending | Search across all columns |
+| Boolean column filter | Core | Complete | True/false filter |
+| Filter operators | Core | Complete | equals, contains, startsWith |
+| Global quick search | Core | Complete | Search across all columns |
 | Find in grid | Advanced | Pending | Find next/prev, highlight |
-| Programmatic navigation | Advanced | Pending | scrollToRow, scrollToColumn |
+| Programmatic navigation | Advanced | Complete | scrollToRow, scrollToColumn |
 | URL/state sync | Advanced | Pending | Sync filters to URL |
 
 ---
@@ -74,18 +74,18 @@ Where "table" becomes a real "grid." Much more edge-case heavy.
 
 | Feature | Type | Status | Description |
 |---------|------|--------|-------------|
-| Cell editing | Core | Pending | Click/double-click to edit |
-| Text editor | Core | Pending | Basic text input |
-| Number editor | Core | Pending | Numeric input |
+| Cell editing | Core | Complete | Click/double-click to edit |
+| Text editor | Core | Complete | Basic text input |
+| Number editor | Core | Complete | Numeric input |
 | Select editor | Core | Pending | Dropdown selection |
 | Date editor | Core | Pending | Date picker |
-| Commit/cancel | Core | Pending | Enter/Escape handling |
-| Cell validation | Core | Pending | Validate before commit |
+| Commit/cancel | Core | Complete | Enter/Escape handling |
+| Cell validation | Core | Complete | Validate before commit |
 | Row editing | Advanced | Pending | Edit entire row |
 | Batch editing | Advanced | Pending | Multiple changes at once |
 | Async validation | Advanced | Pending | Server validation |
 | Dirty state tracking | Advanced | Pending | Track unsaved changes |
-| Conditional editability | Advanced | Pending | Per-cell permissions |
+| Conditional editability | Advanced | Complete | Per-cell permissions |
 | Clipboard copy | Advanced | Pending | Copy cells to clipboard |
 | Clipboard paste | Advanced | Pending | Paste into cells |
 | Undo/redo | Advanced | Pending | Revert changes |
@@ -169,8 +169,8 @@ Often underestimated; must be designed in early for virtualized grids.
 
 | Feature | Type | Status | Description |
 |---------|------|--------|-------------|
-| Keyboard navigation | Core | Pending | Arrow keys, Tab |
-| Focus management | Core | Pending | Track focused cell |
+| Keyboard navigation | Core | Complete | Arrow keys, Tab |
+| Focus management | Core | Complete | Track focused cell |
 | ARIA grid pattern | Core | Partial | Proper roles/attributes |
 | Screen reader support | Core | Pending | Announcements |
 | High contrast mode | Advanced | Pending | Enhanced visibility |
@@ -213,26 +213,24 @@ Typically only for "millions of cells" scenarios.
 
 ## Implementation Priorities
 
-### Phase 2: Next Up
-Focus on completing common interactions:
-
+### Phase 2: Selection & Navigation ✅ COMPLETE
 1. Multi-row selection (Ctrl+click, Shift+click, select all)
 2. Keyboard navigation (arrow keys, Tab, Enter)
 3. Column show/hide toggle
 4. Row striping
 
-### Phase 3: Filtering
+### Phase 3: Filtering ✅ COMPLETE
 5. Text column filter
 6. Number range filter
 7. Global quick search
 8. Filter operators
 
-### Phase 4: Editing
+### Phase 4: Editing ✅ COMPLETE
 9. Cell editing (text, number)
 10. Validation
 11. Commit/cancel flow
 
-### Phase 5: Layout
+### Phase 5: Layout (Next Up)
 12. Column pinning (left)
 13. Auto-size columns
 14. Column reorder

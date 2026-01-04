@@ -77,6 +77,7 @@ interface ColumnDef<TData, TValue = unknown> {
 | `filterable` | `boolean` | `true` | Enable filtering for this column |
 | `resizable` | `boolean` | `true` | Enable resizing for this column |
 | `visible` | `boolean` | `true` | Column visibility |
+| `editable` | `boolean` | `true` | Enable editing for this column (requires grid `editable` prop) |
 
 ### Filter Properties
 
@@ -195,6 +196,16 @@ const columns = [
   sortable: false,
   filterable: false
 }
+```
+
+### Editable columns with read-only ID
+
+```typescript
+const columns = [
+  { key: 'id', header: 'ID', width: 60, editable: false },
+  { key: 'name', header: 'Name', width: 200 },  // editable by default
+  { key: 'email', header: 'Email', width: 250 } // editable by default
+];
 ```
 
 ### Custom render with Svelte snippet

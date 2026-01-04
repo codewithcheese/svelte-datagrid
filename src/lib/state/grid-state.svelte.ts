@@ -2,6 +2,22 @@ import type { ColumnDef, SortState, FilterState, SelectionMode, FilterOperator }
 import { defaultGetRowId, type GetRowId } from '../types/index.js';
 
 /**
+ * Edit state for a cell being edited.
+ */
+export interface EditState {
+	/** Row ID of the cell being edited */
+	rowId: string | number;
+	/** Column key of the cell being edited */
+	columnKey: string;
+	/** Current value in the editor */
+	value: unknown;
+	/** Original value before editing started */
+	originalValue: unknown;
+	/** Validation error message, if any */
+	error?: string;
+}
+
+/**
  * Configuration options for creating a grid state instance.
  */
 export interface GridOptions<TData> {
@@ -23,8 +39,10 @@ export interface GridOptions<TData> {
 	onSortChange?: (sort: SortState[]) => void;
 	/** Callback when selection changes */
 	onSelectionChange?: (selected: Set<string | number>) => void;
-	/** Callback when cell is edited */
-	onCellEdit?: (rowId: string | number, columnKey: string, value: unknown) => void;
+	/** Callback when cell edit is committed */
+	onCellEdit?: (rowId: string | number, columnKey: string, newValue: unknown, oldValue: unknown) => void;
+	/** Callback to validate cell value before commit */
+	onCellValidate?: (rowId: string | number, columnKey: string, value: unknown) => string | null;
 }
 
 /**
@@ -138,6 +156,9 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 	let columnWidths = $state<Map<string, number>>(new Map(columns.map((col) => [col.key, col.width ?? 150])));
 	let columnOrder = $state<string[]>(columns.map((col) => col.key));
 	let hiddenColumns = $state<Set<string>>(new Set());
+
+	// Edit state
+	let editState = $state<EditState | null>(null);
 
 	// Derived: Visible columns (respecting order and visibility)
 	const visibleColumns = $derived.by(() => {
@@ -562,6 +583,103 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		return navigateRow(offset, select);
 	}
 
+	// ==================== Edit Actions ====================
+
+	/**
+	 * Start editing a cell.
+	 */
+	function startEdit(rowId: string | number, columnKey: string): boolean {
+		// Find the column
+		const column = columns.find((c) => c.key === columnKey);
+		if (!column || column.editable === false) {
+			return false;
+		}
+
+		// Find the row and get current value
+		const rowIndex = processedData.findIndex((row, i) => getRowId(row, i) === rowId);
+		if (rowIndex < 0) return false;
+
+		const row = processedData[rowIndex];
+		const value = getColumnValue(row, column);
+
+		editState = {
+			rowId,
+			columnKey,
+			value,
+			originalValue: value,
+			error: undefined
+		};
+
+		// Focus on the cell
+		focusedRowId = rowId;
+		focusedColumnKey = columnKey;
+		focusedRowIndex = rowIndex;
+
+		return true;
+	}
+
+	/**
+	 * Update the value in the current edit.
+	 */
+	function setEditValue(value: unknown): void {
+		if (!editState) return;
+
+		// Validate if validator provided
+		const error = options.onCellValidate?.(editState.rowId, editState.columnKey, value) ?? undefined;
+
+		editState = {
+			...editState,
+			value,
+			error
+		};
+	}
+
+	/**
+	 * Commit the current edit.
+	 * Returns true if commit was successful, false if validation failed or no edit in progress.
+	 */
+	function commitEdit(): boolean {
+		if (!editState) return false;
+
+		// Validate before commit
+		const error = options.onCellValidate?.(editState.rowId, editState.columnKey, editState.value);
+		if (error) {
+			editState = { ...editState, error };
+			return false;
+		}
+
+		const { rowId, columnKey, value, originalValue } = editState;
+
+		// Only call callback if value changed
+		if (value !== originalValue) {
+			options.onCellEdit?.(rowId, columnKey, value, originalValue);
+		}
+
+		editState = null;
+		return true;
+	}
+
+	/**
+	 * Cancel the current edit and revert to original value.
+	 */
+	function cancelEdit(): void {
+		editState = null;
+	}
+
+	/**
+	 * Check if a specific cell is currently being edited.
+	 */
+	function isEditing(rowId: string | number, columnKey: string): boolean {
+		return editState?.rowId === rowId && editState?.columnKey === columnKey;
+	}
+
+	/**
+	 * Check if any cell is currently being edited.
+	 */
+	function hasActiveEdit(): boolean {
+		return editState !== null;
+	}
+
 	// Return public API
 	return {
 		// Reactive getters
@@ -637,6 +755,9 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		get globalSearchTerm() {
 			return globalSearchTerm;
 		},
+		get editState() {
+			return editState;
+		},
 
 		// Config (non-reactive)
 		rowHeight,
@@ -667,7 +788,15 @@ export function createGridState<TData>(options: GridOptions<TData>) {
 		navigateRow,
 		navigateToFirst,
 		navigateToLast,
-		navigateByPage
+		navigateByPage,
+
+		// Edit actions
+		startEdit,
+		setEditValue,
+		commitEdit,
+		cancelEdit,
+		isEditing,
+		hasActiveEdit
 	};
 }
 

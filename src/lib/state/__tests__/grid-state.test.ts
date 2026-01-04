@@ -505,4 +505,235 @@ describe('Grid State', () => {
 			expect(state.columns).toEqual(newColumns);
 		});
 	});
+
+	describe('cell editing', () => {
+		test('startEdit initializes edit state', () => {
+			const state = createTestGridState();
+
+			const result = state.startEdit(1, 'name');
+
+			expect(result).toBe(true);
+			expect(state.editState).not.toBeNull();
+			expect(state.editState?.rowId).toBe(1);
+			expect(state.editState?.columnKey).toBe('name');
+			expect(state.editState?.value).toBe('Alice');
+			expect(state.editState?.originalValue).toBe('Alice');
+		});
+
+		test('startEdit returns false for non-existent row', () => {
+			const state = createTestGridState();
+
+			const result = state.startEdit(999, 'name');
+
+			expect(result).toBe(false);
+			expect(state.editState).toBeNull();
+		});
+
+		test('startEdit returns false for column with editable: false', () => {
+			const state = createGridState({
+				data: testData,
+				columns: [
+					{ key: 'id', header: 'ID', editable: false },
+					{ key: 'name', header: 'Name' },
+					{ key: 'age', header: 'Age' }
+				],
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple'
+			});
+
+			const result = state.startEdit(1, 'id');
+
+			expect(result).toBe(false);
+			expect(state.editState).toBeNull();
+		});
+
+		test('startEdit focuses the cell', () => {
+			const state = createTestGridState();
+
+			state.startEdit(2, 'age');
+
+			expect(state.focusedRowId).toBe(2);
+			expect(state.focusedColumnKey).toBe('age');
+			expect(state.focusedRowIndex).toBe(1); // Row with id=2 is at index 1
+		});
+
+		test('setEditValue updates the edit value', () => {
+			const state = createTestGridState();
+
+			state.startEdit(1, 'name');
+			state.setEditValue('Updated Name');
+
+			expect(state.editState?.value).toBe('Updated Name');
+		});
+
+		test('setEditValue does nothing without active edit', () => {
+			const state = createTestGridState();
+
+			state.setEditValue('Test Value');
+
+			expect(state.editState).toBeNull();
+		});
+
+		test('setEditValue calls onCellValidate and sets error', () => {
+			const state = createGridState({
+				data: testData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				onCellValidate: (rowId, columnKey, value) => {
+					if (columnKey === 'name' && String(value).length < 2) {
+						return 'Name must be at least 2 characters';
+					}
+					return null;
+				}
+			});
+
+			state.startEdit(1, 'name');
+			state.setEditValue('A'); // Too short
+
+			expect(state.editState?.error).toBe('Name must be at least 2 characters');
+		});
+
+		test('commitEdit clears edit state on success', () => {
+			const state = createTestGridState();
+
+			state.startEdit(1, 'name');
+			state.setEditValue('New Name');
+			const result = state.commitEdit();
+
+			expect(result).toBe(true);
+			expect(state.editState).toBeNull();
+		});
+
+		test('commitEdit calls onCellEdit callback when value changed', () => {
+			let callbackCalled = false;
+			let callbackArgs: { rowId: any; columnKey: any; newValue: any; oldValue: any } | null = null;
+
+			const state = createGridState({
+				data: testData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				onCellEdit: (rowId, columnKey, newValue, oldValue) => {
+					callbackCalled = true;
+					callbackArgs = { rowId, columnKey, newValue, oldValue };
+				}
+			});
+
+			state.startEdit(1, 'name');
+			state.setEditValue('New Name');
+			state.commitEdit();
+
+			expect(callbackCalled).toBe(true);
+			expect(callbackArgs?.rowId).toBe(1);
+			expect(callbackArgs?.columnKey).toBe('name');
+			expect(callbackArgs?.newValue).toBe('New Name');
+			expect(callbackArgs?.oldValue).toBe('Alice');
+		});
+
+		test('commitEdit does not call onCellEdit when value unchanged', () => {
+			let callbackCalled = false;
+
+			const state = createGridState({
+				data: testData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				onCellEdit: () => {
+					callbackCalled = true;
+				}
+			});
+
+			state.startEdit(1, 'name');
+			// Don't change the value
+			state.commitEdit();
+
+			expect(callbackCalled).toBe(false);
+		});
+
+		test('commitEdit returns false on validation error', () => {
+			const state = createGridState({
+				data: testData,
+				columns: testColumns,
+				getRowId: (row) => row.id,
+				selectionMode: 'multiple',
+				onCellValidate: (rowId, columnKey, value) => {
+					if (String(value).length < 2) return 'Too short';
+					return null;
+				}
+			});
+
+			state.startEdit(1, 'name');
+			state.setEditValue('A'); // Too short
+			const result = state.commitEdit();
+
+			expect(result).toBe(false);
+			expect(state.editState).not.toBeNull(); // Edit state should remain
+			expect(state.editState?.error).toBe('Too short');
+		});
+
+		test('commitEdit returns false when no edit in progress', () => {
+			const state = createTestGridState();
+
+			const result = state.commitEdit();
+
+			expect(result).toBe(false);
+		});
+
+		test('cancelEdit clears edit state', () => {
+			const state = createTestGridState();
+
+			state.startEdit(1, 'name');
+			state.setEditValue('Changed');
+			state.cancelEdit();
+
+			expect(state.editState).toBeNull();
+		});
+
+		test('isEditing returns true for active edit cell', () => {
+			const state = createTestGridState();
+
+			state.startEdit(1, 'name');
+
+			expect(state.isEditing(1, 'name')).toBe(true);
+			expect(state.isEditing(1, 'age')).toBe(false);
+			expect(state.isEditing(2, 'name')).toBe(false);
+		});
+
+		test('isEditing returns false when no edit', () => {
+			const state = createTestGridState();
+
+			expect(state.isEditing(1, 'name')).toBe(false);
+		});
+
+		test('hasActiveEdit returns true when editing', () => {
+			const state = createTestGridState();
+
+			expect(state.hasActiveEdit()).toBe(false);
+
+			state.startEdit(1, 'name');
+
+			expect(state.hasActiveEdit()).toBe(true);
+
+			state.cancelEdit();
+
+			expect(state.hasActiveEdit()).toBe(false);
+		});
+
+		test('editState getter returns current edit state', () => {
+			const state = createTestGridState();
+
+			expect(state.editState).toBeNull();
+
+			state.startEdit(1, 'name');
+
+			expect(state.editState).toEqual({
+				rowId: 1,
+				columnKey: 'name',
+				value: 'Alice',
+				originalValue: 'Alice',
+				error: undefined
+			});
+		});
+	});
 });

@@ -9,6 +9,7 @@
 		oncellclick?: (event: unknown) => void;
 		onrowclick?: (event: unknown) => void;
 		selectable: boolean;
+		editable: boolean;
 	}>('datagrid-options');
 
 	let viewportEl: HTMLDivElement | undefined = $state();
@@ -122,6 +123,7 @@
 						? options.rowClass(row, rowIndex)
 						: options.rowClass}
 					selectable={options.selectable}
+					editable={options.editable}
 					scrollLeft={gridState.scrollLeft}
 				/>
 			{/each}

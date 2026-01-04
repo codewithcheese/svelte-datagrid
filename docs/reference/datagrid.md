@@ -38,6 +38,7 @@ The main data grid component.
 | `searchable` | `boolean` | `false` | Show global search bar |
 | `resizable` | `boolean` | `false` | Enable column resizing |
 | `sortable` | `boolean` | `true` | Enable column sorting (can be overridden per-column) |
+| `editable` | `boolean` | `false` | Enable cell editing (can be overridden per-column) |
 
 ### Identification Props
 
@@ -124,6 +125,33 @@ The main data grid component.
   onSortChange={(sort) => {
     console.log('Sort:', sort);
     // [{ field: 'name', direction: 'asc' }]
+  }}
+/>
+```
+
+### Edit Events
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `oncelledit` | `GridCellEditEvent<TData>` | Cell value was edited |
+| `oncellvalidate` | `(rowId, columnKey, value) => string \| null` | Validate cell value before commit |
+
+```svelte
+<DataGrid
+  {data}
+  {columns}
+  editable
+  oncelledit={(e) => {
+    console.log(`Edited ${e.columnKey}: ${e.oldValue} -> ${e.newValue}`);
+    // Update your data source here
+    updateRow(e.rowId, e.columnKey, e.newValue);
+  }}
+  oncellvalidate={(rowId, columnKey, value) => {
+    // Return error message to prevent commit, or null to allow
+    if (columnKey === 'email' && !value?.includes('@')) {
+      return 'Invalid email address';
+    }
+    return null;
   }}
 />
 ```

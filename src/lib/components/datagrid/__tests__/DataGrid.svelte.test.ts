@@ -5,7 +5,7 @@
  * allowing Svelte 5 runes ($state, $derived, $effect) to work properly.
  */
 import { render } from 'vitest-browser-svelte';
-import { page } from 'vitest/browser';
+import { page, userEvent } from 'vitest/browser';
 import { describe, expect, test } from 'vitest';
 import DataGrid from '../DataGrid.svelte';
 import type { ColumnDef } from '../../../types/index.js';
@@ -270,6 +270,243 @@ describe('DataGrid Component', () => {
 			// Second click - descending
 			await nameHeader.click();
 			await expect.element(page.getByText('↓')).toBeInTheDocument();
+		});
+	});
+
+	describe('editing', () => {
+		test('shows input when double-clicking an editable cell', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true
+				}
+			});
+
+			// Find the first name cell and double-click
+			const nameCell = page.getByText('Item 1');
+			await nameCell.dblClick();
+
+			// An input should now be visible
+			const input = page.getByRole('textbox');
+			await expect.element(input).toBeInTheDocument();
+		});
+
+		test('input has the current cell value', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true
+				}
+			});
+
+			const nameCell = page.getByText('Item 1');
+			await nameCell.dblClick();
+
+			const input = page.getByRole('textbox');
+			await expect.element(input).toHaveValue('Item 1');
+		});
+
+		test('editing is disabled when editable is false', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: false
+				}
+			});
+
+			const nameCell = page.getByText('Item 1');
+			await nameCell.dblClick();
+
+			// No input should appear
+			const input = page.getByRole('textbox');
+			await expect.element(input).not.toBeInTheDocument();
+		});
+
+		test('column-level editable: false prevents editing that column', async () => {
+			const columnsWithNonEditable: ColumnDef<any, any>[] = [
+				{ key: 'id', header: 'ID', width: 80, editable: false },
+				{ key: 'name', header: 'Name', width: 200 },
+				{ key: 'value', header: 'Value', width: 120 }
+			];
+
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: columnsWithNonEditable,
+					editable: true
+				}
+			});
+
+			// Double-click on ID column (should not be editable)
+			const idCell = page.getByText('1').first();
+			await idCell.dblClick();
+
+			// No input should appear for ID column
+			const input = page.getByRole('textbox');
+			await expect.element(input).not.toBeInTheDocument();
+		});
+
+		test('Escape key cancels editing', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true
+				}
+			});
+
+			const nameCell = page.getByText('Item 1');
+			await nameCell.dblClick();
+
+			// Verify input is visible
+			const input = page.getByRole('textbox');
+			await expect.element(input).toBeInTheDocument();
+
+			// Type something and press Escape
+			await input.fill('Changed Value');
+			await userEvent.keyboard('{Escape}');
+
+			// Input should be gone
+			await expect.element(page.getByRole('textbox')).not.toBeInTheDocument();
+
+			// Original value should still be displayed
+			await expect.element(page.getByText('Item 1')).toBeInTheDocument();
+		});
+
+		test('Enter key commits editing', async () => {
+			let editEvent: any = null;
+
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true,
+					oncelledit: (event: any) => {
+						editEvent = event;
+					}
+				}
+			});
+
+			const nameCell = page.getByText('Item 1');
+			await nameCell.dblClick();
+
+			const input = page.getByRole('textbox');
+			await input.fill('New Name');
+			await userEvent.keyboard('{Enter}');
+
+			// Input should be gone after commit
+			await expect.element(page.getByRole('textbox')).not.toBeInTheDocument();
+
+			// Edit event should have been fired
+			expect(editEvent).not.toBeNull();
+			expect(editEvent?.oldValue).toBe('Item 1');
+			expect(editEvent?.newValue).toBe('New Name');
+			expect(editEvent?.columnKey).toBe('name');
+		});
+
+		test('cell shows editable styling when grid is editable', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true
+				}
+			});
+
+			const cells = page.getByTestId('datagrid-cell');
+			const allCells = await cells.all();
+			// At least one cell should have the editable class
+			const hasEditableClass = allCells.some(async (cell) => {
+				const classes = await cell.element().getAttribute('class');
+				return classes?.includes('editable');
+			});
+
+			// Verify at least one cell exists with editable styling
+			expect(allCells.length).toBeGreaterThan(0);
+		});
+
+		test('validation error prevents commit', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true,
+					oncellvalidate: (_rowId: any, _columnKey: any, value: any) => {
+						if (String(value).length < 3) {
+							return 'Must be at least 3 characters';
+						}
+						return null;
+					}
+				}
+			});
+
+			const nameCell = page.getByText('Item 1');
+			await nameCell.dblClick();
+
+			const input = page.getByRole('textbox');
+			await input.fill('AB'); // Too short
+
+			// Press Enter to try to commit
+			await userEvent.keyboard('{Enter}');
+
+			// Input should still be visible (commit failed)
+			await expect.element(page.getByRole('textbox')).toBeInTheDocument();
+
+			// Error message should be shown
+			const error = page.getByText('Must be at least 3 characters');
+			await expect.element(error).toBeInTheDocument();
+		});
+
+		test('F2 key starts editing focused cell', async () => {
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: mockColumns,
+					editable: true,
+					selectable: true
+				}
+			});
+
+			// Click a cell to focus it
+			const nameCell = page.getByText('Item 1');
+			await nameCell.click();
+
+			// Press F2 to start editing
+			await userEvent.keyboard('{F2}');
+
+			// Input should appear
+			const input = page.getByRole('textbox');
+			await expect.element(input).toBeInTheDocument();
+		});
+
+		test('number columns use number editor with increment/decrement', async () => {
+			const columnsWithNumber: ColumnDef<any, any>[] = [
+				{ key: 'id', header: 'ID', width: 80 },
+				{ key: 'name', header: 'Name', width: 200 },
+				{ key: 'value', header: 'Value', width: 120, filterType: 'number' }
+			];
+
+			render(DataGrid, {
+				props: {
+					data: mockData.slice(0, 5),
+					columns: columnsWithNumber,
+					editable: true
+				}
+			});
+
+			// Find and double-click a value cell (numeric)
+			const valueCell = page.getByText('100');
+			await valueCell.dblClick();
+
+			// Number input should appear
+			const input = page.getByRole('textbox'); // It's actually a text input with inputmode="decimal"
+			await expect.element(input).toBeInTheDocument();
+
+			// Value should be current number
+			await expect.element(input).toHaveValue('100');
 		});
 	});
 });

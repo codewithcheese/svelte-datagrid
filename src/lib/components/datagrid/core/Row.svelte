@@ -14,6 +14,7 @@
 		isSelected: boolean;
 		rowClass?: string;
 		selectable: boolean;
+		editable: boolean;
 		scrollLeft: number;
 	}
 
@@ -27,6 +28,7 @@
 		isSelected,
 		rowClass = '',
 		selectable,
+		editable,
 		scrollLeft
 	}: Props = $props();
 
@@ -101,6 +103,8 @@
 			{column}
 			width={columnWidths.get(column.key) ?? 150}
 			{rowIndex}
+			{rowId}
+			{editable}
 			onCellClick={(value, event) => handleCellClick(column, value, event)}
 		/>
 	{/each}
