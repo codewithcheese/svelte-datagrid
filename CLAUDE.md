@@ -8,6 +8,8 @@
 2. **Run type checking**: `pnpm check` - No TypeScript errors
 3. **Update documentation** following the Diátaxis framework (see below)
 
+> **Important**: Always run tests locally before committing. If Playwright is not installed, run `pnpm exec playwright install chromium` first.
+
 ## Key Commands
 
 | Command | Purpose |
