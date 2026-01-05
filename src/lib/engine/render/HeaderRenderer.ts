@@ -41,6 +41,16 @@ export class HeaderRenderer<TData extends Record<string, unknown>> {
 	private headerCells = new Map<string, HeaderCell>();
 	private isDestroyed = false;
 
+	// Resize state
+	private resizeState: {
+		columnKey: string;
+		startX: number;
+		startWidth: number;
+	} | null = null;
+
+	// Bound handlers for cleanup
+	private boundHandlers = new Map<string, EventListener>();
+
 	constructor(
 		container: HTMLElement,
 		state: StateManager<TData>,
@@ -79,6 +89,9 @@ export class HeaderRenderer<TData extends Record<string, unknown>> {
 		this.scrollableEl.style.willChange = 'transform';
 		this.headerRow.appendChild(this.scrollableEl);
 
+		// Attach event listeners
+		this.attachEventListeners();
+
 		// Subscribe to state changes
 		this.state.on('columns', () => this.render());
 		this.state.on('sort', () => this.updateSortIndicators());
@@ -87,6 +100,109 @@ export class HeaderRenderer<TData extends Record<string, unknown>> {
 		// Initial render
 		this.render();
 	}
+
+	/**
+	 * Attach event listeners for header interactions.
+	 */
+	private attachEventListeners(): void {
+		// Click handler for sorting (using event delegation)
+		const clickHandler = ((event: MouseEvent) => {
+			if (!this.options.sortable) return;
+
+			const target = event.target as HTMLElement;
+
+			// Ignore clicks on resize handle
+			if (target.classList.contains('datagrid-resize-handle')) return;
+
+			// Find the header cell
+			const headerCell = target.closest('.datagrid-header-cell') as HTMLElement;
+			if (!headerCell) return;
+
+			const columnKey = headerCell.dataset.columnKey;
+			if (!columnKey) return;
+
+			// Check if column is sortable
+			const column = this.state.columns.find(c => c.key === columnKey);
+			if (column?.sortable === false) return;
+
+			// Toggle sort with multi-sort if shift key is held
+			this.state.toggleSort(columnKey, event.shiftKey);
+		}) as EventListener;
+
+		this.headerRow.addEventListener('click', clickHandler);
+		this.boundHandlers.set('click', clickHandler);
+
+		// Mousedown handler for column resizing
+		const mousedownHandler = ((event: MouseEvent) => {
+			if (!this.options.resizable) return;
+
+			const target = event.target as HTMLElement;
+			if (!target.classList.contains('datagrid-resize-handle')) return;
+
+			const columnKey = target.dataset.columnKey;
+			if (!columnKey) return;
+
+			// Get current width
+			const currentWidth = this.state.columnWidths.get(columnKey) ?? 150;
+
+			this.resizeState = {
+				columnKey,
+				startX: event.clientX,
+				startWidth: currentWidth
+			};
+
+			// Add active class for visual feedback
+			target.classList.add('active');
+
+			// Prevent text selection during drag
+			event.preventDefault();
+
+			// Add document-level listeners for drag
+			document.addEventListener('mousemove', this.handleResizeMove);
+			document.addEventListener('mouseup', this.handleResizeEnd);
+		}) as EventListener;
+
+		this.headerRow.addEventListener('mousedown', mousedownHandler);
+		this.boundHandlers.set('mousedown', mousedownHandler);
+	}
+
+	/**
+	 * Handle mouse move during column resize.
+	 */
+	private handleResizeMove = (event: MouseEvent): void => {
+		if (!this.resizeState) return;
+
+		const delta = event.clientX - this.resizeState.startX;
+		const newWidth = Math.max(50, this.resizeState.startWidth + delta); // Minimum 50px
+
+		// Get column for max width check
+		const column = this.state.columns.find(c => c.key === this.resizeState!.columnKey);
+		const maxWidth = column?.maxWidth ?? 1000;
+		const minWidth = column?.minWidth ?? 50;
+
+		const clampedWidth = Math.min(maxWidth, Math.max(minWidth, newWidth));
+
+		this.state.setColumnWidth(this.resizeState.columnKey, clampedWidth);
+	};
+
+	/**
+	 * Handle mouse up to end column resize.
+	 */
+	private handleResizeEnd = (): void => {
+		if (!this.resizeState) return;
+
+		// Remove active class
+		const handle = this.headerRow.querySelector(
+			`.datagrid-resize-handle[data-column-key="${this.resizeState.columnKey}"]`
+		);
+		handle?.classList.remove('active');
+
+		this.resizeState = null;
+
+		// Remove document-level listeners
+		document.removeEventListener('mousemove', this.handleResizeMove);
+		document.removeEventListener('mouseup', this.handleResizeEnd);
+	};
 
 	/**
 	 * Render the header.
@@ -294,6 +410,20 @@ export class HeaderRenderer<TData extends Record<string, unknown>> {
 	 */
 	destroy(): void {
 		this.isDestroyed = true;
+
+		// Remove event listeners
+		for (const [event, handler] of this.boundHandlers) {
+			this.headerRow.removeEventListener(event, handler);
+		}
+		this.boundHandlers.clear();
+
+		// Clean up any active resize
+		if (this.resizeState) {
+			document.removeEventListener('mousemove', this.handleResizeMove);
+			document.removeEventListener('mouseup', this.handleResizeEnd);
+			this.resizeState = null;
+		}
+
 		this.headerCells.clear();
 		this.headerRow.remove();
 	}

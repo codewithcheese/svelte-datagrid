@@ -256,6 +256,18 @@ export class GridEngine<TData extends Record<string, unknown>> {
 		return this.stateManager.refresh();
 	}
 
+	/**
+	 * Wait for any pending data fetch to complete.
+	 * Useful for testing or ensuring data is loaded.
+	 */
+	waitForData(): Promise<void> {
+		return this.stateManager.waitForData();
+	}
+
+	get queryError(): string | null {
+		return this.stateManager.queryError;
+	}
+
 	// ===========================================
 	// Public API - Selection
 	// ===========================================
@@ -332,12 +344,20 @@ export class GridEngine<TData extends Record<string, unknown>> {
 		this.stateManager.setGlobalSearch(term);
 	}
 
+	clearGlobalSearch(): void {
+		this.stateManager.clearGlobalSearch();
+	}
+
 	get sortState() {
 		return this.stateManager.sortState;
 	}
 
 	get filterState() {
 		return this.stateManager.filterState;
+	}
+
+	get globalSearchTerm(): string {
+		return this.stateManager.globalSearchTerm;
 	}
 
 	// ===========================================
@@ -352,12 +372,36 @@ export class GridEngine<TData extends Record<string, unknown>> {
 		this.stateManager.setColumnVisibility(columnKey, visible);
 	}
 
+	setColumnPinned(columnKey: string, pinned: 'left' | 'right' | false): void {
+		this.stateManager.setColumnPinned(columnKey, pinned);
+	}
+
+	reorderColumn(columnKey: string, targetIndex: number): void {
+		this.stateManager.reorderColumn(columnKey, targetIndex);
+	}
+
+	autoSizeColumn(columnKey: string, options?: { minWidth?: number; maxWidth?: number; padding?: number }): void {
+		this.stateManager.autoSizeColumn(columnKey, options);
+	}
+
+	autoSizeAllColumns(options?: { minWidth?: number; maxWidth?: number; padding?: number }): void {
+		this.stateManager.autoSizeAllColumns(options);
+	}
+
 	get visibleColumns(): ColumnDef<TData>[] {
 		return this.stateManager.visibleColumns;
 	}
 
 	get columnWidths(): Map<string, number> {
 		return this.stateManager.columnWidths;
+	}
+
+	get columnOrder(): string[] {
+		return this.stateManager.columnOrder;
+	}
+
+	get hiddenColumns(): Set<string> {
+		return this.stateManager.hiddenColumns;
 	}
 
 	// ===========================================
@@ -378,6 +422,41 @@ export class GridEngine<TData extends Record<string, unknown>> {
 
 	get editState() {
 		return this.stateManager.editState;
+	}
+
+	/**
+	 * Check if any cell is currently being edited.
+	 */
+	hasActiveEdit(): boolean {
+		return this.stateManager.editState !== null;
+	}
+
+	/**
+	 * Check if a specific cell is being edited.
+	 */
+	isEditing(rowId: string | number, columnKey: string): boolean {
+		const edit = this.stateManager.editState;
+		return edit !== null && edit.rowId === rowId && edit.columnKey === columnKey;
+	}
+
+	// ===========================================
+	// Public API - Focus
+	// ===========================================
+
+	get focusedRowId(): string | number | null {
+		return this.stateManager.focusedRowId;
+	}
+
+	get focusedColumnKey(): string | null {
+		return this.stateManager.focusedColumnKey;
+	}
+
+	get focusedRowIndex(): number {
+		return this.stateManager.focusedRowIndex;
+	}
+
+	setFocus(rowId: string | number | null, columnKey: string | null): void {
+		this.stateManager.setFocus(rowId, columnKey);
 	}
 
 	// ===========================================

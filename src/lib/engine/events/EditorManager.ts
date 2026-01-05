@@ -54,6 +54,10 @@ export class EditorManager<TData extends Record<string, unknown>> {
 	private currentColumnKey: string | null = null;
 	private originalValue: unknown = null;
 
+	// Track edit session to prevent blur race condition
+	private editSessionId: number = 0;
+	private pendingBlurTimeout: ReturnType<typeof setTimeout> | null = null;
+
 	constructor(options: EditorManagerOptions<TData>) {
 		this.options = options;
 
@@ -77,6 +81,15 @@ export class EditorManager<TData extends Record<string, unknown>> {
 	 * Show editor for the given cell.
 	 */
 	showEditor(rowId: string | number, columnKey: string): void {
+		// Cancel any pending blur timeout from previous editor
+		if (this.pendingBlurTimeout) {
+			clearTimeout(this.pendingBlurTimeout);
+			this.pendingBlurTimeout = null;
+		}
+
+		// Increment session ID to invalidate any stale blur handlers
+		this.editSessionId++;
+
 		const column = this.options.getColumn(columnKey);
 		const rowData = this.options.getRowData(rowId);
 		const cellElement = this.options.getCellElement(rowId, columnKey);
@@ -99,6 +112,10 @@ export class EditorManager<TData extends Record<string, unknown>> {
 		const editor = this.acquireEditor(editorType);
 		this.activeEditor = editor;
 
+		// Clear any previous error
+		editor.errorEl.textContent = '';
+		editor.errorEl.style.display = 'none';
+
 		// Position editor over cell
 		this.positionEditor(editor, cellElement);
 
@@ -107,7 +124,7 @@ export class EditorManager<TData extends Record<string, unknown>> {
 
 		// Show editor
 		editor.container.style.display = '';
-		editor.errorEl.style.display = 'none';
+		editor.container.classList.remove('has-error');
 		editor.savingEl.style.display = 'none';
 
 		// Focus and select
@@ -323,18 +340,99 @@ export class EditorManager<TData extends Record<string, unknown>> {
 			event.stopPropagation();
 			this.cancel();
 		} else if (event.key === 'Tab') {
-			// Commit and let default tab behavior happen
-			this.commit();
+			event.preventDefault();
+			event.stopPropagation();
+
+			const direction = event.shiftKey ? -1 : 1;
+			this.commitAndNavigate(direction);
 		}
+	}
+
+	/**
+	 * Commit current edit and navigate to next/previous editable cell.
+	 */
+	private async commitAndNavigate(direction: 1 | -1): Promise<void> {
+		if (!this.currentRowId || !this.currentColumnKey) return;
+
+		// Find next editable cell
+		const nextCell = this.findNextEditableCell(
+			this.currentRowId,
+			this.currentColumnKey,
+			direction
+		);
+
+		// Commit current edit
+		const success = await this.commit();
+
+		// If commit succeeded and we have a next cell, start editing it
+		if (success && nextCell) {
+			this.options.stateManager.startEdit(nextCell.rowId, nextCell.columnKey);
+		}
+	}
+
+	/**
+	 * Find the next editable cell in the given direction.
+	 */
+	private findNextEditableCell(
+		currentRowId: string | number,
+		currentColumnKey: string,
+		direction: 1 | -1
+	): { rowId: string | number; columnKey: string } | null {
+		const state = this.options.stateManager;
+		const rows = state.rows;
+		const columns = state.visibleColumns.filter(col => col.editable !== false);
+
+		if (columns.length === 0 || rows.length === 0) return null;
+
+		// Find current position
+		const currentRowIndex = rows.findIndex((row, i) =>
+			state.getRowId(row, i) === currentRowId
+		);
+		const currentColIndex = columns.findIndex(col => col.key === currentColumnKey);
+
+		if (currentRowIndex === -1 || currentColIndex === -1) return null;
+
+		// Calculate next position
+		let nextColIndex = currentColIndex + direction;
+		let nextRowIndex = currentRowIndex;
+
+		// Wrap to next/previous row
+		if (nextColIndex >= columns.length) {
+			nextColIndex = 0;
+			nextRowIndex++;
+		} else if (nextColIndex < 0) {
+			nextColIndex = columns.length - 1;
+			nextRowIndex--;
+		}
+
+		// Check bounds
+		if (nextRowIndex < 0 || nextRowIndex >= rows.length) {
+			return null; // Reached the end/beginning
+		}
+
+		const nextRow = rows[nextRowIndex];
+		const nextColumn = columns[nextColIndex];
+
+		return {
+			rowId: state.getRowId(nextRow, nextRowIndex),
+			columnKey: nextColumn.key
+		};
 	}
 
 	/**
 	 * Handle blur in editor (commit on click outside).
 	 */
 	private handleEditorBlur(): void {
+		// Capture session ID to check if it's still valid after timeout
+		const sessionId = this.editSessionId;
+
 		// Use setTimeout to allow click events to fire first
-		setTimeout(() => {
-			if (this.activeEditor) {
+		// (e.g., clicking on another cell should start new edit, not commit this one)
+		this.pendingBlurTimeout = setTimeout(() => {
+			this.pendingBlurTimeout = null;
+
+			// Only commit if same session and editor is still active
+			if (sessionId === this.editSessionId && this.activeEditor) {
 				this.commit();
 			}
 		}, 100);
@@ -395,6 +493,12 @@ export class EditorManager<TData extends Record<string, unknown>> {
 	 * Cleanup all editors.
 	 */
 	destroy(): void {
+		// Clear any pending blur timeout
+		if (this.pendingBlurTimeout) {
+			clearTimeout(this.pendingBlurTimeout);
+			this.pendingBlurTimeout = null;
+		}
+
 		for (const editor of this.editorPool) {
 			editor.container.remove();
 		}
