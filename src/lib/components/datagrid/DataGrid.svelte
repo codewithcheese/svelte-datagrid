@@ -10,7 +10,7 @@
 	} from '../../types/index.js';
 	import type { DataSource } from '../../query/types.js';
 
-	export interface DataGridEngineProps<TData extends Record<string, unknown>> {
+	export interface DataGridProps<TData extends Record<string, unknown>> {
 		/** Data rows to display (alternative to dataSource) */
 		data?: TData[];
 		/** Column definitions */
@@ -72,7 +72,7 @@
 		return selectable as boolean | 'single' | 'multiple' | undefined;
 	}
 
-	type Props = DataGridEngineProps<TData> & {
+	type Props = DataGridProps<TData> & {
 		oncellclick?: (event: GridCellClickEvent<TData>) => void;
 		onrowclick?: (event: GridRowClickEvent<TData>) => void;
 		onsortchange?: (event: GridSortEvent) => void;

@@ -2,25 +2,21 @@
 
 The GridEngine is a pure TypeScript implementation of the grid rendering logic. It can be used directly for advanced use cases or wrapped by UI frameworks.
 
-## DataGrid / DataGridEngine Component
+## DataGrid Component
 
-> **Note**: `DataGrid` and `DataGridEngine` are **the same component**. `DataGrid` is an alias for `DataGridEngine` for convenience. You can use either name interchangeably.
-
-The recommended way to use GridEngine is through the Svelte component:
+The recommended way to use GridEngine is through the DataGrid Svelte component:
 
 ```svelte
 <script>
-  import { DataGridEngine } from 'svelte-datagrid';
+  import { DataGrid } from 'svelte-datagrid';
 </script>
 
-<DataGridEngine {data} {columns} />
+<DataGrid {data} {columns} />
 ```
 
 This is a lightweight wrapper around GridEngine that handles lifecycle management and Svelte integration.
 
 ### Props
-
-DataGridEngine has the same props as DataGrid:
 
 | Prop | Type | Default | Description |
 |------|------|---------|-------------|
@@ -244,8 +240,7 @@ These are automatically coordinated by GridEngine. For most use cases, you don't
 
 | Use Case | Recommendation |
 |----------|---------------|
-| Standard Svelte app | Use `DataGrid` or `DataGridEngine` |
-| Need maximum performance | Use `DataGridEngine` |
+| Standard Svelte app | Use `DataGrid` component |
 | Building custom wrapper | Use `GridEngine` directly |
 | Non-Svelte environment | Use `GridEngine` directly |
 | Server-side rendering | Use `DataGrid` with dataSource |

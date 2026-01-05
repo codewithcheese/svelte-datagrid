@@ -256,7 +256,7 @@ See [Query Module](../query.md) for DataSource API details.
 ```
 src/lib/
 ├── components/datagrid/
-│   ├── DataGridEngine.svelte  # Main Svelte wrapper
+│   ├── DataGrid.svelte        # Main Svelte wrapper
 │   └── __tests__/             # Component tests
 ├── engine/
 │   ├── GridEngine.ts          # Main orchestrator

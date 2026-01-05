@@ -1,13 +1,13 @@
 /**
- * Browser-based component tests for DataGridEngine
+ * Browser-based component tests for DataGrid
  *
- * Tests for the new GridEngine-based implementation.
+ * Tests for the GridEngine-based implementation.
  * These tests run in a real Chromium browser via Vitest browser mode.
  */
 import { render } from 'vitest-browser-svelte';
 import { page } from 'vitest/browser';
 import { describe, expect, test } from 'vitest';
-import DataGridEngine from '../DataGridEngine.svelte';
+import DataGrid from '../DataGrid.svelte';
 import type { ColumnDef } from '../../../types/index.js';
 
 // Helper to wait for a specified time
@@ -32,10 +32,10 @@ const mockData: TestRow[] = Array.from({ length: 100 }, (_, i) => ({
 	value: (i + 1) * 100
 }));
 
-describe('DataGridEngine Component', () => {
+describe('DataGrid Component', () => {
 	describe('rendering', () => {
 		test('renders the grid container', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns
@@ -47,7 +47,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('applies custom className', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -60,7 +60,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('renders rows from GridEngine', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -77,7 +77,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('renders column headers', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns
@@ -96,7 +96,7 @@ describe('DataGridEngine Component', () => {
 
 	describe('error state', () => {
 		test('shows error message when errorMessage prop is set', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -110,7 +110,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('error state takes precedence over other states', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -130,7 +130,7 @@ describe('DataGridEngine Component', () => {
 
 	describe('dimensions', () => {
 		test('respects height prop with number', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -144,7 +144,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('respects width prop with number', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -157,7 +157,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('accepts string dimensions', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns,
@@ -173,7 +173,7 @@ describe('DataGridEngine Component', () => {
 
 	describe('accessibility', () => {
 		test('has correct ARIA role', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns
@@ -185,7 +185,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('has aria-rowcount attribute', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns
@@ -201,7 +201,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('has aria-colcount attribute', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns
@@ -215,7 +215,7 @@ describe('DataGridEngine Component', () => {
 
 	describe('GridEngine integration', () => {
 		test('creates header container', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns
@@ -230,7 +230,7 @@ describe('DataGridEngine Component', () => {
 		});
 
 		test('creates body container', async () => {
-			render(DataGridEngine, {
+			render(DataGrid, {
 				props: {
 					data: mockData,
 					columns: mockColumns

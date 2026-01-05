@@ -1,6 +1,6 @@
 // Components
-export { DataGrid, DataGridEngine } from './components/datagrid/index.js';
-export type { DataGridProps, DataGridEngineProps } from './components/datagrid/index.js';
+export { DataGrid } from './components/datagrid/index.js';
+export type { DataGridProps } from './components/datagrid/index.js';
 
 // Grid Engine (for advanced usage / custom wrappers)
 export { GridEngine, createGridEngine } from './engine/index.js';
