@@ -2,9 +2,36 @@
 
 This document describes the performance benchmarks for the DataGrid component, including the features being tested, target performance goals, and how to run them.
 
-## Overview
+## Two Benchmark Systems
 
-The benchmark system measures **real user interactions** in a production build - actual clicks, keyboard events, and mouse operations - not just JavaScript execution time. This captures the full user-perceived latency including:
+The project uses **two complementary benchmark systems** for different purposes:
+
+| System | Command | Purpose | Environment |
+|--------|---------|---------|-------------|
+| **Playwright** | `pnpm bench:playwright` | User interaction latency | Chromium browser |
+| **Vitest** | `pnpm bench` | Algorithm performance | Node.js (V8) |
+
+### When to Use Each
+
+**Use Playwright benchmarks for:**
+- End-to-end user interaction timing (click, scroll, keyboard)
+- Full UI cycle measurement (event → JS → DOM → paint)
+- Regression testing user-perceived performance
+- CI/CD performance gates
+
+**Use Vitest benchmarks for:**
+- Pure JavaScript algorithm optimization
+- Comparing implementation approaches
+- Profiling specific functions (virtualizer, sort, filter)
+- Development-time performance tuning
+
+> **Note:** Vitest benchmarks run in Node.js only. Since both Node.js and Chromium use the V8 JavaScript engine, algorithm performance is equivalent. Browser-specific performance (DOM, rendering) is measured by Playwright benchmarks.
+
+---
+
+## Playwright Benchmarks (User Interactions)
+
+The Playwright benchmark system measures **real user interactions** in a production build - actual clicks, keyboard events, and mouse operations - not just JavaScript execution time. This captures the full user-perceived latency including:
 
 - Browser event dispatch
 - JavaScript execution
@@ -125,7 +152,7 @@ Configuration is in `playwright.bench.config.ts`:
 }
 ```
 
-## Adding New Benchmarks
+## Adding New Playwright Benchmarks
 
 1. Add test to `bench/interactions.spec.ts`
 2. Follow the pattern:
@@ -154,7 +181,7 @@ Configuration is in `playwright.bench.config.ts`:
 
 ## Statistics
 
-Each benchmark reports:
+Each Playwright benchmark reports:
 
 - **n** - Number of iterations
 - **min** - Minimum time
@@ -163,3 +190,65 @@ Each benchmark reports:
 - **max** - Maximum time
 - **target** - Target threshold
 - **passed** - Whether median is under target
+
+---
+
+## Vitest Benchmarks (Algorithm Performance)
+
+Vitest benchmarks measure pure JavaScript algorithm performance without browser overhead. These are useful during development to optimize specific functions.
+
+### Running Vitest Benchmarks
+
+```bash
+# Run all algorithm benchmarks
+pnpm bench
+
+# Run with detailed output
+pnpm exec vitest bench --reporter=verbose
+```
+
+### Benchmark Suites
+
+| Suite | What it Tests |
+|-------|---------------|
+| Virtualizer Performance | `createVirtualizer`, `getVirtualItems`, scroll offset calculations |
+| Data Generation | Array creation and object allocation at scale |
+| Sorting Performance | `Array.sort` with different comparators |
+| Filtering Performance | `Array.filter` with string/number predicates |
+| Selection Operations | `Set` creation, lookup, and mutation |
+| Column Width Calculations | `Map` operations for column management |
+| Array Copy Performance | `slice()` vs spread operator at scale |
+
+### Adding New Vitest Benchmarks
+
+1. Add benchmarks to `src/lib/benchmarks/datagrid.bench.ts`
+2. Follow the pattern:
+   ```typescript
+   import { describe, bench } from 'vitest';
+
+   describe('Feature Performance', () => {
+     // Setup data outside bench() - not measured
+     const testData = generateData(100000);
+
+     bench('operation name', () => {
+       // Only code inside bench() is measured
+       doSomething(testData);
+     });
+   });
+   ```
+
+### Important Guidelines
+
+**DO use Vitest benchmarks for:**
+- Pure JavaScript/TypeScript functions
+- Algorithm comparisons (e.g., sort strategies)
+- Data structure operations (Array, Set, Map)
+- Mathematical calculations
+
+**DO NOT use Vitest benchmarks for:**
+- DOM manipulation
+- Browser APIs (fetch, localStorage, etc.)
+- Component rendering
+- User interactions
+
+For browser-specific performance, use Playwright benchmarks instead.
