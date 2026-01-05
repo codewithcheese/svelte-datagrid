@@ -11,6 +11,7 @@ export default defineConfig({
 		projects: [
 			{
 				// Browser-based component tests (Svelte 5 runes work here)
+				// Default: Chromium. Override via CLI: --browser.instances.0.browser=firefox
 				extends: true,
 				test: {
 					name: 'browser',
