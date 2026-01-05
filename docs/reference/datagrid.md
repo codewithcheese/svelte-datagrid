@@ -93,20 +93,32 @@ When `editable` is enabled and the DataSource implements `MutableDataSource` (li
 | `class` | `string` | `''` | CSS class for grid container |
 | `rowClass` | `string \| ((row: TData, index: number) => string)` | `undefined` | CSS class for data rows |
 
-### Bindable Props
+### Accessing the Grid API
 
-| Prop | Type | Description |
-|------|------|-------------|
-| `gridState` | `GridState` | Bind to access grid state API |
+Bind to the component to access the GridEngine API:
 
 ```svelte
-<DataGrid {data} {columns} bind:gridState />
-
 <script>
-  let gridState;
-  // Now you can call gridState.selectAll(), gridState.navigateToFirst(), etc.
+  let gridComponent;
+  // Access the engine via getEngine()
+  // gridComponent.getEngine()?.selectAll();
+  // Or use component methods directly
+  // gridComponent.selectAll();
 </script>
+
+<DataGrid {data} {columns} bind:this={gridComponent} />
 ```
+
+Available component methods:
+- `getEngine()` - Get the underlying GridEngine instance
+- `selectRow(rowId, mode?)` - Select a row
+- `selectAll()` - Select all rows
+- `clearSelection()` - Clear selection
+- `scrollToRow(index)` - Scroll to a row
+- `refresh()` - Refresh data from DataSource
+- `startEdit(rowId, columnKey)` - Start editing a cell
+- `commitEdit()` - Commit current edit
+- `cancelEdit()` - Cancel current edit
 
 ## Events
 
@@ -284,7 +296,7 @@ The component implements the ARIA grid pattern:
     { key: 'active', header: 'Active', width: 80 }
   ];
 
-  let gridState;
+  let gridComponent;
   let selectedIds = new Set<number>();
 
   function handleSelection(event) {
@@ -302,7 +314,7 @@ The component implements the ARIA grid pattern:
     resizable
     getRowId={(row) => row.id}
     onselectionchange={handleSelection}
-    bind:gridState
+    bind:this={gridComponent}
   />
 </div>
 

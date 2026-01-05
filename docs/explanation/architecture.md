@@ -7,7 +7,7 @@ This document explains how Svelte DataGrid is structured and the design decision
 The grid was designed with these priorities:
 
 1. **Performance first**: Handle 100K+ rows smoothly
-2. **Svelte 5 native**: Use runes, not legacy stores
+2. **Framework agnostic core**: Pure TypeScript engine, thin Svelte wrapper
 3. **Backend agnostic**: Work with any data source
 4. **Accessible**: Follow ARIA grid pattern
 5. **Composable**: Customizable without forking
@@ -16,165 +16,177 @@ The grid was designed with these priorities:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ DataGrid (Main Component)                               │
-│  ├── SearchBar (optional)                               │
-│  ├── Header                                             │
-│  │    ├── HeaderRow (column headers, sort indicators)  │
-│  │    └── FilterRow (optional, per-column filters)     │
-│  └── Body (virtualized rows)                            │
-│       └── Row × visibleCount                            │
-│            └── Cell × columns                           │
+│ DataGrid (Svelte Component - thin wrapper)              │
+│  └── GridEngine (TypeScript)                            │
+│       ├── StateManager (state + data fetching)          │
+│       ├── HeaderRenderer (column headers, sort, resize) │
+│       ├── BodyRenderer (virtualized rows via DOM pools) │
+│       │    ├── RowPool (recycled row elements)          │
+│       │    └── CellPool (recycled cell elements)        │
+│       ├── EventManager (keyboard, mouse, touch events)  │
+│       └── EditorManager (cell editing lifecycle)        │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ## Component Breakdown
 
-### DataGrid.svelte
+### DataGrid (Svelte Component)
 
-The main orchestrator. It:
-- Accepts props (data, columns, options)
-- Creates and provides GridState via context
-- Computes layout dimensions
-- Renders child components
+A thin wrapper around GridEngine. It:
+- Creates the container element
+- Initializes GridEngine on mount
+- Syncs props to engine options
+- Provides Svelte-style events and snippets
+- Cleans up on destroy
 
 ```svelte
 <DataGrid {data} {columns} selectable filterable />
 ```
 
-### GridState (grid-state.svelte.ts)
+### GridEngine (TypeScript Class)
 
-The reactive state manager. Uses Svelte 5 runes and delegates data operations to a DataSource:
+The core orchestrator. It:
+- Creates and coordinates all subsystems
+- Exposes the public API (select, sort, scroll, etc.)
+- Manages lifecycle (init, update, destroy)
 
 ```typescript
-// DataSource is the single source of truth for data
-// Grid-state only manages presentation concerns
-
-// Query state (what to ask DataSource)
-let sortState = $state<SortState[]>([]);
-let filterState = $state<FilterState[]>([]);
-let globalSearchTerm = $state<string>('');
-
-// Selection state
-let selectedIds = $state<Set<string | number>>(new Set());
-
-// Data from DataSource queries
-let rows = $state<TData[]>([]);
-let isLoading = $state<boolean>(false);
-
-// Derived (computed from DataSource results)
-const visibleRows = $derived(rows.slice(startIndex, endIndex));
+const engine = createGridEngine(container, {
+  data,
+  columns,
+  sortable: true,
+  onSortChange: (sort) => console.log(sort)
+});
 ```
 
-When you provide a `data` array, GridState creates a `LocalDataSource` internally. When you provide a `dataSource`, it uses that directly. All sorting, filtering, and pagination are delegated to the DataSource.
+### StateManager
 
-GridState is created once per grid instance and passed via Svelte context.
+The centralized state manager. Uses plain TypeScript with event-based notifications:
 
-### Header Components
+```typescript
+// State is stored in typed properties
+private _rows: TData[] = [];
+private _selectedIds = new Set<string | number>();
+private _sortState: SortState[] = [];
 
-**Header.svelte**: Container that manages header layout and column positioning.
+// Changes trigger events
+emit('selection', selectedIds);
+emit('sort', sortState);
+emit('data', rows);
+```
 
-**HeaderRow**: Renders column headers with sort indicators. Handles click-to-sort.
+When you provide a `data` array, StateManager creates a `LocalDataSource` internally. When you provide a `dataSource`, it uses that directly. All sorting, filtering, and pagination are delegated to the DataSource.
 
-**FilterRow**: Renders per-column filter inputs when `filterable=true`.
+### HeaderRenderer
 
-**SearchBar**: Global search input when `searchable=true`.
+Renders the header row with:
+- Column headers with sort indicators
+- Resize handles (drag to resize)
+- Click handlers for sort toggle
+- Pinned column support
 
-### Body.svelte
+### BodyRenderer
 
-The virtualized row container. It:
-- Listens to scroll events
-- Calculates visible row range
-- Renders only visible rows
-- Applies vertical offset transform
+The virtualized row container using DOM pooling:
+- Maintains a pool of reusable row elements (RowPool)
+- Rows contain pools of reusable cell elements (CellPool)
+- Only renders rows visible in the viewport + overscan
+- Recycles DOM elements on scroll instead of creating/destroying
 
-### Row.svelte
+### EventManager
 
-A single data row. Handles:
-- Row selection state (selected class)
-- Row click events
-- Renders cells for each column
+Handles all user interaction via event delegation:
+- Single event listener on container (not per-row/cell)
+- Keyboard navigation (arrows, Page Up/Down, Home/End)
+- Selection (click, Shift+click, Ctrl+click)
+- Edit triggering (double-click, F2, Enter)
 
-### Cell.svelte
+### EditorManager
 
-A single cell. Handles:
-- Value extraction from row
-- Custom render functions
-- Cell click events
-- Alignment and styling
+Manages cell editing lifecycle:
+- Editor pooling (reuses input elements)
+- Position tracking relative to cells
+- Validation and commit/cancel flow
+- Tab navigation between editable cells
 
 ## Data Flow
 
 ```
-User Action → Event Handler → GridState Update → Derived Recompute → DOM Update
-     │                              │                    │
-     │                              ▼                    │
-     │                        $state mutation            │
-     │                              │                    │
-     │                              ▼                    │
-     │                        $derived recalc           │
-     │                              │                    │
-     │                              ▼                    │
-     └──────────────────────────────────────────────────┘
-                            Svelte renders
+User Action → EventManager → StateManager → Event Emission → Renderers Update DOM
+     │                            │                               │
+     │                            ▼                               │
+     │                    DataSource Query                        │
+     │                       (if needed)                          │
+     │                            │                               │
+     │                            ▼                               │
+     │                     State Update                           │
+     │                            │                               │
+     └───────────────────────────────────────────────────────────►│
+                                                          DOM Reconciliation
 ```
 
 ### Example: Sorting
 
 1. User clicks column header
-2. HeaderRow calls `gridState.setSort([{ field, direction }])`
-3. `currentSort` state updates
-4. `processedData` derived recomputes (applies sort)
-5. `visibleRows` derived recomputes
-6. Svelte re-renders affected rows
+2. HeaderRenderer click handler → StateManager.toggleSort()
+3. StateManager updates sortState and queries DataSource
+4. DataSource returns sorted data
+5. StateManager emits 'data' event
+6. BodyRenderer receives event and updates visible rows
+7. Only affected DOM elements are updated (via pool reconciliation)
 
 ### Example: Selection
 
 1. User clicks row
-2. Row calls `gridState.selectRow(rowId)`
-3. `selectedRows` state updates
-4. `isRowSelected(id)` returns new value
-5. Row component gets new `isSelected` prop
-6. Svelte updates row's CSS class
+2. EventManager delegates to StateManager.selectRow()
+3. StateManager updates selectedIds and emits 'selection' event
+4. BodyRenderer updates row's 'selected' CSS class
+5. No full re-render; only class toggle on affected elements
 
 ## State Management Pattern
 
-We use a "single source of truth" pattern with DataSource as the data authority:
+We use event-based state notifications:
 
 ```typescript
-// GridState manages presentation; DataSource manages data
-const gridState = createGridState({
-  data,      // or dataSource for custom backends
-  columns,
-  ...
-});
+// StateManager holds all state
+class StateManager<TData> {
+  private listeners = new Map<string, Set<Function>>();
 
-// Components read from state (data comes from DataSource)
-const { visibleRows, isLoading, selectedIds } = gridState;
+  // Subscribe to state changes
+  on(event: string, callback: Function) {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(callback);
+  }
 
-// Components mutate via methods
-gridState.selectRow(id);
-gridState.setSort(columnKey, 'asc');
+  // Emit state changes
+  private emit(event: string, data?: unknown) {
+    this.listeners.get(event)?.forEach(cb => cb(data));
+  }
+}
 
-// Edits are persisted through DataSource automatically
-await gridState.commitEdit();
+// Renderers subscribe to relevant events
+stateManager.on('data', () => this.render());
+stateManager.on('selection', () => this.updateSelectionClasses());
+stateManager.on('scroll', () => this.updateVisibleRows());
 ```
-
-This avoids prop drilling, keeps state changes predictable, and allows seamless switching between client-side and server-side data.
 
 ## Virtualization Strategy
 
-We use **fixed-height row virtualization**:
+We use **DOM pooling with fixed-height rows**:
 
-1. Calculate visible row indices from scroll position
-2. Render only those rows plus overscan buffer
-3. Use CSS transform to position rows correctly
-4. Maintain stable row keys for efficient updates
+1. Pre-allocate pool of row/cell elements
+2. Calculate visible row indices from scroll position
+3. Assign visible data to pooled elements
+4. Update element positions via CSS transform
+5. Recycle elements when rows scroll out of view
 
 ```
 Total rows: 10,000
 Visible: 20 rows
-Rendered: 30 rows (20 + 10 overscan)
-DOM nodes: ~30 rows × columns
+Pool size: 30 elements (20 + overscan)
+DOM operations: Updates only, no create/destroy
 ```
 
 See [Virtualization](./virtualization.md) for details.
@@ -185,7 +197,7 @@ The grid uses DataSource as its data layer:
 
 ```
 ┌─────────────┐     GridQueryRequest      ┌──────────────────┐
-│  GridState  │ ─────────────────────────►│    DataSource    │
+│ StateManager│ ─────────────────────────►│    DataSource    │
 │             │                           │                  │
 │ - Sort UI   │ ◄─────────────────────────│ LocalDataSource  │
 │ - Filter UI │     GridQueryResponse     │ PostgresDataSource│
@@ -193,7 +205,7 @@ The grid uses DataSource as its data layer:
 └─────────────┘                           └──────────────────┘
 ```
 
-**Key design**: When you provide a `data` array, GridState automatically creates a `LocalDataSource`. When you provide a `dataSource`, it uses that directly. This means:
+**Key design**: When you provide a `data` array, StateManager automatically creates a `LocalDataSource`. When you provide a `dataSource`, it uses that directly. This means:
 
 - **Client-side data**: Just pass `data` prop - sorting/filtering happens in-memory
 - **Server-side data**: Pass `dataSource` prop - operations happen on the server
@@ -202,45 +214,35 @@ The grid uses DataSource as its data layer:
 
 See [Query Module](../query.md) for DataSource API details.
 
-## Context Usage
-
-We use Svelte context to pass shared state:
-
-```typescript
-// DataGrid.svelte
-setContext('datagrid', {
-  gridState,
-  options: { selectable, filterable, ... }
-});
-
-// Any child component
-const { gridState, options } = getContext('datagrid');
-```
-
-This avoids deep prop drilling while keeping components decoupled.
-
 ## Why These Choices?
 
-### Why Svelte 5 runes over stores?
+### Why pure TypeScript engine?
 
-- Runes are the future of Svelte
-- `$derived` is more intuitive than derived stores
-- Better TypeScript integration
-- Simpler mental model
+- Maximum performance (no framework overhead in hot paths)
+- Framework agnostic (can wrap in React, Vue, vanilla JS)
+- Direct DOM control for precise updates
+- Easier to optimize and profile
+
+### Why DOM pooling?
+
+- Fixed pool size regardless of data size
+- Zero allocation during scroll
+- Predictable memory usage
+- O(1) scroll performance
 
 ### Why fixed-height rows?
 
-- Predictable layout calculations
 - O(1) scroll position → row index mapping
+- Predictable layout calculations
 - No layout thrashing during scroll
-- Variable heights are possible but complex (future)
+- Simpler virtualization logic
 
-### Why context over global state?
+### Why event-based state?
 
-- Multiple grids on one page work independently
-- No global singleton issues
-- Clear ownership of state
-- Follows Svelte patterns
+- Decouples state from rendering
+- Renderers only update when their data changes
+- No framework-specific reactivity
+- Explicit control over update timing
 
 ### Why DataSource abstraction?
 
@@ -254,29 +256,32 @@ This avoids deep prop drilling while keeping components decoupled.
 ```
 src/lib/
 ├── components/datagrid/
-│   ├── DataGrid.svelte       # Main component
-│   ├── core/
-│   │   ├── Header.svelte     # Header container
-│   │   ├── HeaderRow.svelte  # Column headers
-│   │   ├── FilterRow.svelte  # Filter inputs
-│   │   ├── SearchBar.svelte  # Global search
-│   │   ├── Body.svelte       # Virtualized body
-│   │   ├── Row.svelte        # Data row
-│   │   └── Cell.svelte       # Data cell
-│   └── __tests__/            # Component tests
-├── state/
-│   ├── grid-state.svelte.ts  # State manager
-│   └── __tests__/            # State tests
+│   ├── DataGridEngine.svelte  # Main Svelte wrapper
+│   └── __tests__/             # Component tests
+├── engine/
+│   ├── GridEngine.ts          # Main orchestrator
+│   ├── state/
+│   │   └── StateManager.ts    # Centralized state
+│   ├── render/
+│   │   ├── BodyRenderer.ts    # Virtualized body
+│   │   ├── HeaderRenderer.ts  # Column headers
+│   │   ├── RowPool.ts         # Row element pool
+│   │   └── CellPool.ts        # Cell element pool
+│   ├── events/
+│   │   ├── EventManager.ts    # Event delegation
+│   │   └── EditorManager.ts   # Cell editing
+│   └── __tests__/             # Engine tests
 ├── query/
-│   ├── types.ts              # DataSource types
-│   ├── local-data-source.ts  # In-memory source
+│   ├── types.ts               # DataSource types
+│   ├── local-data-source.ts   # In-memory source
 │   └── postgres-data-source.ts # PostgreSQL source
 └── core/
-    └── virtualizer.ts        # Virtualization logic
+    └── virtualizer.ts         # Virtualization logic
 ```
 
 ## See also
 
-- [State Management](./state-management.md) - Deep dive into reactivity
+- [State Management](./state-management.md) - Deep dive into StateManager
 - [Virtualization](./virtualization.md) - Row virtualization details
+- [Performance](./performance.md) - Optimization strategies
 - [Query Module](../query.md) - DataSource API and data layer design
