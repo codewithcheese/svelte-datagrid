@@ -93,6 +93,14 @@ export class BodyRenderer<TData extends Record<string, unknown>> {
 				this.render();
 			}
 		});
+
+		// Also schedule via setTimeout(0) as a backup for environments
+		// where queueMicrotask might not fire reliably
+		setTimeout(() => {
+			if (!this.isDestroyed && this.state.rows.length > 0) {
+				this.render();
+			}
+		}, 0);
 	}
 
 	/**
@@ -121,8 +129,9 @@ export class BodyRenderer<TData extends Record<string, unknown>> {
 		// Primary: requestAnimationFrame for smooth rendering
 		this.pendingRender = requestAnimationFrame(doRender);
 
-		// Fallback: setTimeout for headless browsers where rAF may be throttled
-		this.pendingFallback = window.setTimeout(doRender, 16);
+		// Fallback: setTimeout(0) for headless browsers where rAF may be throttled
+		// Using 0ms ensures the callback runs in the next event loop iteration
+		this.pendingFallback = window.setTimeout(doRender, 0);
 	}
 
 	// Fallback timeout handle

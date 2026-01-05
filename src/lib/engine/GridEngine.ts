@@ -15,6 +15,7 @@
  */
 
 import type { ColumnDef, GridCellClickEvent, GridRowClickEvent, GridCellEditEvent, FilterOperator, SortState } from '../types/index.js';
+import { defaultGetRowId } from '../types/index.js';
 import type { DataSource } from '../query/types.js';
 import { StateManager, createStateManager } from './state/StateManager.js';
 import { BodyRenderer } from './render/BodyRenderer.js';
@@ -127,7 +128,7 @@ export class GridEngine<TData extends Record<string, unknown>> {
 			rowHeight: options.rowHeight ?? 40,
 			getRowId: options.getRowId
 				? (row: unknown, index: number) => options.getRowId!(row as TData, index)
-				: ((_row: unknown, index: number) => index),
+				: (row: unknown, index: number) => defaultGetRowId(row as TData, index),
 			cellRenderer: options.cellRenderer
 				? (context) => options.cellRenderer!({
 					row: context.row as TData,
