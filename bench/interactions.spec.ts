@@ -114,15 +114,19 @@ async function setupGrid(page: Page, rowCount: number): Promise<void> {
 	await page.waitForFunction(() => (window as any).__bench?.ready === true, { timeout: 30000 });
 	await page.evaluate((count) => (window as any).__bench.setup(count), rowCount);
 	await page.waitForSelector('[data-testid="datagrid-body"]');
-	// Wait for initial render to settle
-	await page.waitForTimeout(200);
+	// Wait for rows to actually render (not just the container)
+	await page.waitForSelector('[data-testid="datagrid-row"]', { timeout: 5000 });
+	// Additional settle time for any remaining renders
+	await page.waitForTimeout(100);
 }
 
 // Helper to reset grid state
 async function resetGrid(page: Page, rowCount: number): Promise<void> {
 	await page.evaluate(() => (window as any).__bench.reset());
 	await page.evaluate((count) => (window as any).__bench.setup(count), rowCount);
-	await page.waitForTimeout(100);
+	// Wait for rows to render after reset
+	await page.waitForSelector('[data-testid="datagrid-row"]', { timeout: 5000 });
+	await page.waitForTimeout(50);
 }
 
 // ============================================================================

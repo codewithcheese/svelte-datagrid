@@ -85,6 +85,14 @@ export class BodyRenderer<TData extends Record<string, unknown>> {
 		this.state.on('selection', () => this.scheduleRender());
 		this.state.on('columns', () => this.scheduleRender());
 		this.state.on('resize', () => this.scheduleRender());
+
+		// Trigger initial render after a microtask to ensure data is available
+		// This handles cases where data loads before the event subscription
+		queueMicrotask(() => {
+			if (!this.isDestroyed) {
+				this.render();
+			}
+		});
 	}
 
 	/**
