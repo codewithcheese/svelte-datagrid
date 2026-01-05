@@ -209,7 +209,7 @@ export class EventManager<TData extends Record<string, unknown>> {
 	}
 
 	/**
-	 * Handle keyboard events (navigation, selection).
+	 * Handle keyboard events (navigation, selection, editing).
 	 */
 	private handleKeyDown(event: KeyboardEvent): void {
 		// Don't handle if we're in an input/editor
@@ -218,11 +218,25 @@ export class EventManager<TData extends Record<string, unknown>> {
 			return;
 		}
 
+		const { stateManager } = this.options;
+		let handled = false;
+
+		// F2 for editing works independently of selectable (when editable is true)
+		if (event.key === 'F2') {
+			if (this.options.editable && stateManager.focusedRowId !== null && stateManager.focusedColumnKey) {
+				const column = this.options.getColumn(stateManager.focusedColumnKey);
+				if (column && column.editable !== false) {
+					this.options.onCellDoubleClick?.(stateManager.focusedRowId, stateManager.focusedColumnKey);
+					event.preventDefault();
+					return;
+				}
+			}
+		}
+
+		// Selection/navigation keys require selectable to be true
 		if (!this.options.selectable) return;
 
-		const { stateManager } = this.options;
 		const extendSelection = event.shiftKey;
-		let handled = false;
 
 		switch (event.key) {
 			case 'ArrowDown':
@@ -271,16 +285,7 @@ export class EventManager<TData extends Record<string, unknown>> {
 					handled = true;
 				}
 				break;
-			case 'F2':
-				// Start editing on focused cell (Excel-like)
-				if (this.options.editable && stateManager.focusedRowId !== null && stateManager.focusedColumnKey) {
-					const column = this.options.getColumn(stateManager.focusedColumnKey);
-					if (column && column.editable !== false) {
-						this.options.onCellDoubleClick?.(stateManager.focusedRowId, stateManager.focusedColumnKey);
-						handled = true;
-					}
-				}
-				break;
+			// Note: F2 is handled above to work independently of selectable
 		}
 
 		if (handled) {

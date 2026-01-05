@@ -498,6 +498,17 @@ export class GridEngine<TData extends Record<string, unknown>> {
 				editable: options.editable
 			});
 		}
+
+		// Update header renderer options
+		const headerOptions: Record<string, unknown> = {};
+		if (options.sortable !== undefined) headerOptions.sortable = options.sortable;
+		if (options.resizable !== undefined) headerOptions.resizable = options.resizable;
+		if (options.reorderable !== undefined) headerOptions.reorderable = options.reorderable;
+		if (options.headerHeight !== undefined) headerOptions.headerHeight = options.headerHeight;
+
+		if (Object.keys(headerOptions).length > 0) {
+			this.headerRenderer.updateOptions(headerOptions as Partial<import('./render/HeaderRenderer.js').HeaderRendererOptions>);
+		}
 	}
 
 	destroy(): void {

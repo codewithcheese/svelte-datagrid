@@ -392,6 +392,27 @@ export class HeaderRenderer<TData extends Record<string, unknown>> {
 	}
 
 	/**
+	 * Update renderer options dynamically.
+	 */
+	updateOptions(options: Partial<HeaderRendererOptions>): void {
+		const needsRender =
+			options.sortable !== undefined ||
+			options.resizable !== undefined ||
+			options.reorderable !== undefined;
+
+		Object.assign(this.options, options);
+
+		if (options.headerHeight !== undefined) {
+			this.headerRow.style.height = `${options.headerHeight}px`;
+		}
+
+		// Re-render to update cell states (sortable class, resize handles, draggable)
+		if (needsRender) {
+			this.render();
+		}
+	}
+
+	/**
 	 * Get the header row element (for attaching event listeners).
 	 */
 	getHeaderRow(): HTMLElement {

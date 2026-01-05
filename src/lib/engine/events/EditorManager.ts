@@ -44,6 +44,10 @@ interface PooledEditor {
 	inUse: boolean;
 	/** Current editor type */
 	type: 'text' | 'number';
+	/** Keydown handler reference for cleanup */
+	keydownHandler: (e: KeyboardEvent) => void;
+	/** Blur handler reference for cleanup */
+	blurHandler: () => void;
 }
 
 export class EditorManager<TData extends Record<string, unknown>> {
@@ -297,11 +301,15 @@ export class EditorManager<TData extends Record<string, unknown>> {
 		input.type = type;
 		input.className = 'datagrid-editor-input';
 
+		// Create handler references for cleanup
+		const keydownHandler = (e: KeyboardEvent) => this.handleEditorKeyDown(e);
+		const blurHandler = () => this.handleEditorBlur();
+
 		// Handle keyboard events
-		input.addEventListener('keydown', (e) => this.handleEditorKeyDown(e));
+		input.addEventListener('keydown', keydownHandler);
 
 		// Handle blur (commit on click outside)
-		input.addEventListener('blur', () => this.handleEditorBlur());
+		input.addEventListener('blur', blurHandler);
 
 		const savingEl = document.createElement('div');
 		savingEl.className = 'editor-saving';
@@ -323,7 +331,9 @@ export class EditorManager<TData extends Record<string, unknown>> {
 			errorEl,
 			savingEl,
 			inUse: false,
-			type
+			type,
+			keydownHandler,
+			blurHandler
 		};
 	}
 
@@ -500,6 +510,9 @@ export class EditorManager<TData extends Record<string, unknown>> {
 		}
 
 		for (const editor of this.editorPool) {
+			// Explicitly remove event listeners before removing DOM elements
+			editor.input.removeEventListener('keydown', editor.keydownHandler);
+			editor.input.removeEventListener('blur', editor.blurHandler);
 			editor.container.remove();
 		}
 		this.editorPool = [];
