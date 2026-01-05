@@ -1,20 +1,20 @@
 <script lang="ts">
 	import { DataGrid, createColumnHelper } from '$lib';
 	import { tick } from 'svelte';
-	import { BENCH_ENABLED, mark, measure, clear, clearAll, startTimer, summarize, type BenchmarkStats } from '$lib/bench';
+	import { BENCH_ENABLED, startTimer, summarize, type BenchmarkStats } from '$lib/bench';
 
 	/**
 	 * Benchmark Harness Page
 	 *
 	 * This page provides a controlled environment for running repeatable performance benchmarks.
-	 * It exposes functions to the window object that Playwright can call to:
-	 * - Run mount benchmarks (multiple iterations)
-	 * - Run update benchmarks (data changes)
-	 * - Run scroll benchmarks
-	 * - Run sort benchmarks
-	 * - Run filter benchmarks
+	 * It supports both programmatic benchmarks (via window.__bench*) and real user interaction
+	 * benchmarks driven by Playwright.
 	 *
-	 * All benchmarks return raw sample arrays for percentile analysis.
+	 * For user interaction benchmarks, Playwright will:
+	 * 1. Call setup functions to prepare the grid state
+	 * 2. Perform real clicks/types/drags
+	 * 3. Wait for DOM changes to complete
+	 * 4. Measure the elapsed time
 	 */
 
 	// Person data type (same as demo)
@@ -119,10 +119,91 @@
 
 	// Helper to wait for next frame
 	const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
-	const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 	// =========================================================================
-	// Benchmark Functions (exposed to Playwright via window.__bench*)
+	// Setup Functions (for Playwright to prepare scenarios)
+	// =========================================================================
+
+	/**
+	 * Setup grid with specified row count
+	 */
+	async function setup(rowCount: number): Promise<void> {
+		status = `Setting up ${rowCount} rows...`;
+		data = generateData(rowCount);
+		await tick();
+		await nextFrame();
+		status = `Ready with ${rowCount} rows`;
+	}
+
+	/**
+	 * Reset grid to clean state (remount)
+	 */
+	async function reset(): Promise<void> {
+		show = false;
+		data = [];
+		await tick();
+		await nextFrame();
+		show = true;
+		await tick();
+		await nextFrame();
+		status = 'Reset complete';
+	}
+
+	// =========================================================================
+	// Query Functions (for Playwright to verify state)
+	// =========================================================================
+
+	/**
+	 * Get current row count displayed
+	 */
+	function getRowCount(): number {
+		const grid = document.querySelector('[data-testid="datagrid"]');
+		return grid ? parseInt(grid.getAttribute('aria-rowcount') || '0', 10) : 0;
+	}
+
+	/**
+	 * Get first visible row's data for a specific column
+	 */
+	function getFirstVisibleCellText(columnKey: string): string | null {
+		const firstRow = document.querySelector('[data-testid="datagrid-row"][data-row-index="0"]');
+		if (!firstRow) return null;
+		const cell = firstRow.querySelector(`[data-column-key="${columnKey}"]`);
+		return cell?.textContent?.trim() || null;
+	}
+
+	/**
+	 * Get sort direction for a column
+	 */
+	function getSortDirection(columnKey: string): string | null {
+		const header = document.querySelector(`[data-testid="datagrid-header-cell"][data-column-key="${columnKey}"]`);
+		return header?.getAttribute('aria-sort') || null;
+	}
+
+	/**
+	 * Get count of selected rows
+	 */
+	function getSelectedRowCount(): number {
+		return document.querySelectorAll('[data-testid="datagrid-row"][aria-selected="true"]').length;
+	}
+
+	/**
+	 * Check if a specific row is selected
+	 */
+	function isRowSelected(rowIndex: number): boolean {
+		const row = document.querySelector(`[data-testid="datagrid-row"][data-row-index="${rowIndex}"]`);
+		return row?.getAttribute('aria-selected') === 'true';
+	}
+
+	/**
+	 * Get the search input value
+	 */
+	function getSearchValue(): string {
+		const input = document.querySelector('[data-testid="datagrid-search"] input') as HTMLInputElement;
+		return input?.value || '';
+	}
+
+	// =========================================================================
+	// Programmatic Benchmark Functions
 	// =========================================================================
 
 	interface BenchmarkResult {
@@ -130,49 +211,30 @@
 		stats: BenchmarkStats;
 	}
 
-	/**
-	 * Benchmark: Data generation
-	 * Measures how long it takes to generate N rows of data
-	 */
 	async function benchDataGeneration(rowCount: number, iterations: number = 30): Promise<BenchmarkResult> {
-		status = `Running data generation benchmark (${rowCount} rows, ${iterations} iterations)...`;
+		status = `Running data generation benchmark...`;
 		const samples: number[] = [];
-
-		// Warm-up (5 iterations, discarded)
-		for (let i = 0; i < 5; i++) {
-			generateData(rowCount);
-		}
-
-		// Benchmark
+		for (let i = 0; i < 5; i++) generateData(rowCount);
 		for (let i = 0; i < iterations; i++) {
 			const timer = startTimer();
 			generateData(rowCount);
 			samples.push(timer());
 		}
-
 		status = `Data generation complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
-	/**
-	 * Benchmark: Initial render
-	 * Measures time from data assignment to DOM rendered
-	 */
 	async function benchInitialRender(rowCount: number, iterations: number = 20): Promise<BenchmarkResult> {
-		status = `Running initial render benchmark (${rowCount} rows, ${iterations} iterations)...`;
+		status = `Running initial render benchmark...`;
 		const samples: number[] = [];
-
-		// Pre-generate data once
 		const testData = generateData(rowCount);
 
 		for (let i = 0; i < iterations; i++) {
-			// Hide grid
 			show = false;
 			data = [];
 			await tick();
 			await nextFrame();
 
-			// Show grid with data and measure
 			const timer = startTimer();
 			show = true;
 			data = testData;
@@ -180,134 +242,94 @@
 			await nextFrame();
 			samples.push(timer());
 		}
-
 		status = `Initial render complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
-	/**
-	 * Benchmark: Data update
-	 * Measures time to update from one dataset to another
-	 */
 	async function benchDataUpdate(fromCount: number, toCount: number, iterations: number = 20): Promise<BenchmarkResult> {
-		status = `Running data update benchmark (${fromCount} -> ${toCount} rows, ${iterations} iterations)...`;
+		status = `Running data update benchmark...`;
 		const samples: number[] = [];
-
 		const fromData = generateData(fromCount);
 		const toData = generateData(toCount);
 
 		for (let i = 0; i < iterations; i++) {
-			// Reset to initial state
 			data = fromData;
 			await tick();
 			await nextFrame();
 
-			// Measure update
 			const timer = startTimer();
 			data = toData;
 			await tick();
 			await nextFrame();
 			samples.push(timer());
 		}
-
 		status = `Data update complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
-	/**
-	 * Benchmark: Scroll performance
-	 * Measures time for scroll updates across many positions
-	 */
 	async function benchScroll(rowCount: number, scrollPositions: number = 100): Promise<BenchmarkResult> {
-		status = `Running scroll benchmark (${rowCount} rows, ${scrollPositions} positions)...`;
+		status = `Running scroll benchmark...`;
 		const samples: number[] = [];
 
-		// Setup
 		data = generateData(rowCount);
 		await tick();
 		await nextFrame();
 
-		// Get the scroll container
 		const body = document.querySelector('[data-testid="datagrid-body"]') as HTMLElement;
 		if (!body) throw new Error('DataGrid body not found');
 
 		const maxScroll = rowCount * rowHeight - height;
 
 		for (let i = 0; i < scrollPositions; i++) {
-			// Random scroll position
 			const scrollTop = Math.floor(Math.random() * maxScroll);
-
 			const timer = startTimer();
 			body.scrollTop = scrollTop;
 			await nextFrame();
 			samples.push(timer());
 		}
-
 		status = `Scroll benchmark complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
-	/**
-	 * Benchmark: Full demo simulation
-	 * Measures the complete flow like clicking a row count button
-	 */
 	async function benchFullFlow(rowCount: number, iterations: number = 10): Promise<BenchmarkResult> {
-		status = `Running full flow benchmark (${rowCount} rows, ${iterations} iterations)...`;
+		status = `Running full flow benchmark...`;
 		const samples: number[] = [];
 
 		for (let i = 0; i < iterations; i++) {
-			// Reset
 			data = [];
 			await tick();
 			await nextFrame();
 
-			// Full flow: generate + render
 			const timer = startTimer();
-
 			const newData = generateData(rowCount);
 			data = newData;
 			await tick();
 			await nextFrame();
-
 			samples.push(timer());
 		}
-
 		status = `Full flow complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
-	/**
-	 * Benchmark: Sorting performance
-	 * Measures in-memory sort time (not DataGrid sort, just array sort)
-	 */
+	// Legacy JS-only benchmarks (for comparison)
 	async function benchSort(rowCount: number, iterations: number = 20): Promise<BenchmarkResult> {
-		status = `Running sort benchmark (${rowCount} rows, ${iterations} iterations)...`;
+		status = `Running JS sort benchmark...`;
 		const samples: number[] = [];
-
-		// Pre-generate data
 		const testData = generateData(rowCount);
 
 		for (let i = 0; i < iterations; i++) {
-			// Copy array and sort
 			const timer = startTimer();
 			const copy = [...testData];
 			copy.sort((a, b) => a.salary - b.salary);
 			samples.push(timer());
 		}
-
 		status = `Sort complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
-	/**
-	 * Benchmark: Filtering performance
-	 * Measures in-memory filter time
-	 */
 	async function benchFilter(rowCount: number, iterations: number = 20): Promise<BenchmarkResult> {
-		status = `Running filter benchmark (${rowCount} rows, ${iterations} iterations)...`;
+		status = `Running JS filter benchmark...`;
 		const samples: number[] = [];
-
-		// Pre-generate data
 		const testData = generateData(rowCount);
 
 		for (let i = 0; i < iterations; i++) {
@@ -315,16 +337,43 @@
 			testData.filter(row => row.salary > 100000);
 			samples.push(timer());
 		}
-
 		status = `Filter complete`;
 		return { samples, stats: summarize(samples) };
 	}
 
 	// =========================================================================
-	// Expose benchmark functions to Playwright
+	// Expose to Playwright
 	// =========================================================================
 
 	if (typeof window !== 'undefined') {
+		(window as any).__bench = {
+			// Ready flag
+			ready: true,
+
+			// Setup functions
+			setup,
+			reset,
+			generateData,
+
+			// Query functions (for verifying results)
+			getRowCount,
+			getFirstVisibleCellText,
+			getSortDirection,
+			getSelectedRowCount,
+			isRowSelected,
+			getSearchValue,
+
+			// Programmatic benchmarks
+			benchDataGeneration,
+			benchInitialRender,
+			benchDataUpdate,
+			benchScroll,
+			benchFullFlow,
+			benchSort,
+			benchFilter
+		};
+
+		// Legacy support for existing tests
 		(window as any).__benchReady = true;
 		(window as any).__benchDataGeneration = benchDataGeneration;
 		(window as any).__benchInitialRender = benchInitialRender;
@@ -343,13 +392,15 @@
 <div class="harness">
 	<header>
 		<h1>DataGrid Benchmark Harness</h1>
-		<p>This page is used by Playwright for automated performance benchmarks.</p>
+		<p>For automated performance benchmarks via Playwright</p>
 	</header>
 
-	<div class="status">
+	<div class="status" data-testid="bench-status">
 		<strong>Status:</strong> {status}
-		<br />
-		<strong>BENCH_ENABLED:</strong> {BENCH_ENABLED}
+		<span class="separator">|</span>
+		<strong>Rows:</strong> {data.length.toLocaleString()}
+		<span class="separator">|</span>
+		<strong>BENCH:</strong> {BENCH_ENABLED}
 	</div>
 
 	<div class="grid-container">
@@ -359,9 +410,11 @@
 				{columns}
 				{height}
 				{rowHeight}
+				searchable
 				selectable="multiple"
 				sortable
 				resizable
+				reorderable
 			/>
 		{/if}
 	</div>
@@ -394,6 +447,12 @@
 		border-radius: 8px;
 		margin-bottom: 16px;
 		font-family: monospace;
+		font-size: 13px;
+	}
+
+	.separator {
+		color: #999;
+		margin: 0 8px;
 	}
 
 	.grid-container {
