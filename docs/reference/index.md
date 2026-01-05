@@ -20,6 +20,7 @@ Reference documentation is for developers who **already know what they're lookin
 | Document | Description |
 |----------|-------------|
 | [DataGrid](./datagrid.md) | Main component props, events, and snippets |
+| [GridEngine](./grid-engine.md) | Pure TypeScript grid engine and DataGridEngine component |
 | [Column Definition](./column-definition.md) | Column configuration options |
 
 ## State & API Reference
