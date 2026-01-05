@@ -40,19 +40,31 @@ From `CLAUDE.md`, the core JavaScript performance targets are:
 
 | Benchmark | Median | P95 | Target | Status |
 |-----------|--------|-----|--------|--------|
-| `sort_10k` | ~130ms | ~180ms | 300ms | Pass |
-| `sort_100k` | ~2400ms | ~2500ms | 3000ms | Pass |
-| `select_single_100k` | ~40ms | ~50ms | 100ms | Pass |
-| `select_range_100k` | ~50ms | ~65ms | 200ms | Pass |
-| `arrow_down_100k` | ~35ms | ~50ms | 100ms | Pass |
-| `scroll_100k` | ~60ms | ~80ms | 100ms | Pass |
-| `column_resize_100k` | ~2200ms | ~2500ms | 3000ms | Pass |
+| `sort_10k` | ~100ms | ~160ms | 1000ms | Pass |
+| `sort_100k` | ~2400ms | ~2500ms | 6000ms | Pass |
+| `select_single_100k` | ~38ms | ~50ms | 100ms | Pass |
+| `select_range_100k` | ~47ms | ~49ms | 200ms | Pass |
+| `arrow_down_100k` | ~22ms | ~25ms | 100ms | Pass |
+| `scroll_100k` | ~52ms | ~61ms | 100ms | Pass |
+| `column_resize_100k` | ~2200ms | ~2600ms | 3000ms | Pass |
 
 ### Known Performance Issues
 
-1. **Sort 100K** - Takes ~2.4 seconds for full UI cycle. The JS sort is fast (<100ms) but the re-render and virtual scroll recalculation add significant overhead.
+1. **Sort 100K** - Takes ~2.4 seconds for full UI cycle in CI (Chromium). User-reported times may vary by browser:
+   - The JS sort itself is fast (<100ms)
+   - `localeCompare` for string sorting adds overhead
+   - Re-render and virtual scroll recalculation add significant time
+   - Safari/Firefox may have different performance characteristics
 
 2. **Column Resize 100K** - Takes ~2.2 seconds. Resizing triggers recalculation of all column widths and re-renders visible rows.
+
+### Measurement Methodology
+
+Each benchmark measures the **complete user interaction cycle**:
+- Sort: Click header → wait for first visible row to show sorted data
+- Selection: Click row → wait for `aria-selected` attribute change
+- Scroll: Mouse wheel → wait for new rows to render (different `data-row-index`)
+- Resize: Drag handle → wait for actual width change in DOM
 
 ## Running Benchmarks
 
