@@ -22,10 +22,14 @@ Thumbs.db
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 
-# Test artifacts
-**/__screenshots__/
+# Test artifacts (generated during test runs)
 test-results/
+visual-results/
+visual-report/
 
 # Benchmark results (latest results, not baseline)
 bench-results/
 playwright-report/
+
+# Note: e2e/__screenshots__/ is NOT ignored - it contains visual regression baselines
+# that should be committed to the repository

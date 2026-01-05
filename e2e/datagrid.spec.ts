@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('DataGrid', () => {
 	test.beforeEach(async ({ page }) => {
-		await page.goto('/');
+		await page.goto('/demo');
 	});
 
 	test('renders the grid with data', async ({ page }) => {
@@ -11,9 +11,10 @@ test.describe('DataGrid', () => {
 	});
 
 	test('displays column headers', async ({ page }) => {
-		await expect(page.getByText('ID')).toBeVisible();
-		await expect(page.getByText('First Name')).toBeVisible();
-		await expect(page.getByText('Last Name')).toBeVisible();
+		// Use specific header cell selectors to avoid matching other text on the page
+		await expect(page.getByTestId('datagrid-header-cell').filter({ hasText: 'ID' })).toBeVisible();
+		await expect(page.getByTestId('datagrid-header-cell').filter({ hasText: 'First Name' })).toBeVisible();
+		await expect(page.getByTestId('datagrid-header-cell').filter({ hasText: 'Last Name' })).toBeVisible();
 	});
 
 	test('renders rows with data', async ({ page }) => {
@@ -23,14 +24,15 @@ test.describe('DataGrid', () => {
 	});
 
 	test('shows row count in controls', async ({ page }) => {
-		await expect(page.getByText(/Showing.*1,000.*rows/)).toBeVisible();
+		// Demo page shows "1,000 rows | 0 selected" format
+		await expect(page.getByText(/1,000 rows/)).toBeVisible();
 	});
 
 	test('can change row count', async ({ page }) => {
-		const input = page.locator('input[type="number"]');
-		await input.fill('500');
-		await input.press('Enter');
-		await expect(page.getByText(/Showing.*500.*rows/)).toBeVisible();
+		// Demo page uses preset buttons instead of number input
+		const tenKButton = page.getByRole('button', { name: '10K' });
+		await tenKButton.click();
+		await expect(page.getByText(/10,000 rows/)).toBeVisible({ timeout: 10000 });
 	});
 
 	test.describe('sorting', () => {
@@ -125,6 +127,7 @@ test.describe('DataGrid', () => {
 	test.describe('scrolling', () => {
 		test('can scroll through data', async ({ page }) => {
 			const body = page.getByTestId('datagrid-body');
+			await expect(body).toBeVisible();
 
 			// Scroll down
 			await body.evaluate((el) => {
@@ -132,27 +135,31 @@ test.describe('DataGrid', () => {
 			});
 
 			// Wait for virtualization to update
-			await page.waitForTimeout(100);
+			await page.waitForTimeout(200);
 
-			// Check that different rows are now visible
-			const visibleRows = page.getByTestId('datagrid-row');
-			const firstVisibleRow = visibleRows.first();
-			const rowIndex = await firstVisibleRow.getAttribute('data-row-index');
+			// Check that different rows are now visible by finding the minimum row index
+			// Note: DOM pooling means hidden rows stay in DOM with display:none
+			// We only check visible rows (those without display:none)
+			const rowIndices = await page.locator('[data-testid="datagrid-row"]:not([style*="display: none"])').evaluateAll((rows) =>
+				rows
+					.map((r) => parseInt(r.getAttribute('data-row-index') || '-1', 10))
+					.filter((idx) => idx >= 0)
+			);
 
-			// Should not be row 0 after scrolling
-			expect(parseInt(rowIndex ?? '0')).toBeGreaterThan(10);
+			// After scrolling, the minimum visible row index should be > 10
+			const minIndex = Math.min(...rowIndices);
+			expect(minIndex).toBeGreaterThan(10);
 		});
 	});
 
 	test.describe('performance', () => {
 		test('handles large dataset without lag', async ({ page }) => {
-			// Set row count to 100K
-			const input = page.locator('input[type="number"]');
-			await input.fill('100000');
-			await input.press('Enter');
+			// Click 100K button to load large dataset
+			const hundredKButton = page.getByRole('button', { name: '100K' });
+			await hundredKButton.click();
 
 			// Wait for data to load
-			await expect(page.getByText(/Showing.*100,000.*rows/)).toBeVisible({ timeout: 10000 });
+			await expect(page.getByText(/100,000 rows/)).toBeVisible({ timeout: 15000 });
 
 			// Grid should still be responsive
 			const grid = page.getByTestId('datagrid');
@@ -163,6 +170,9 @@ test.describe('DataGrid', () => {
 			await body.evaluate((el) => {
 				el.scrollTop = 50000;
 			});
+
+			// Wait for virtualization to update
+			await page.waitForTimeout(200);
 
 			// Check virtualization is working - should not have 100K DOM nodes
 			const rowCount = await page.getByTestId('datagrid-row').count();

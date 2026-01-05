@@ -29,10 +29,54 @@
 - Use `$derived` for computed values
 - Use `$effect` for side effects (track previous values to avoid infinite loops)
 
-### Testing
-- Unit tests: `*.test.ts` (Vitest, node environment)
-- Browser component tests: `*.svelte.test.ts` (Vitest browser mode, Playwright)
-- Type checking for tests uses `tsconfig.test.json`
+### Testing Architecture
+
+The project uses a **layered testing strategy** for cross-browser DOM accuracy:
+
+| Layer | Tool | Browsers | Purpose |
+|-------|------|----------|---------|
+| Unit tests | Vitest (Node) | None | Data sources, virtualizer, utilities |
+| Browser component tests | Vitest + Playwright | Chromium | Svelte component DOM behavior |
+| E2E tests | Playwright | **Chromium, Firefox, WebKit** | Full integration, cross-browser |
+| Visual regression | Playwright | Chromium, Firefox, WebKit | Screenshot comparison |
+| Benchmarks | Playwright | Chromium | Performance measurement |
+
+**File patterns:**
+- `*.test.ts` - Unit tests (Node environment)
+- `*.svelte.test.ts` - Browser component tests (Playwright/Chromium)
+- `e2e/*.spec.ts` - E2E tests (all browsers)
+- `e2e/visual.spec.ts` - Visual regression tests
+- `bench/*.spec.ts` - Performance benchmarks
+
+**Key principle**: E2E and visual tests run against **production build** (preview mode), not dev server.
+
+### Test Commands
+
+```bash
+# Core testing (run before every commit)
+pnpm test              # Unit + browser component tests
+pnpm check             # Type checking
+
+# E2E testing (cross-browser)
+pnpm e2e               # All browsers (chromium, firefox, webkit)
+pnpm e2e --project=chromium  # Single browser
+
+# Visual regression
+pnpm e2e:visual        # Run visual tests
+pnpm e2e:visual:update # Update baseline screenshots
+
+# Benchmarks
+pnpm bench:playwright  # Performance benchmarks
+```
+
+### Cross-Browser Testing in CI
+
+CI runs E2E tests across **Chromium, Firefox, and WebKit** in parallel. On failure, artifacts (screenshots, traces, videos) are uploaded for debugging.
+
+When adding new E2E tests:
+1. Use `data-testid` attributes for stable selectors
+2. Avoid timing-dependent assertions
+3. Test across browsers locally if behavior might differ
 
 ### Data Sources
 - Grid uses `DataSource` interface for data fetching
