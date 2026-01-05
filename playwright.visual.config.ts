@@ -26,7 +26,7 @@ export default defineConfig({
 		['json', { outputFile: 'visual-results/results.json' }]
 	],
 	use: {
-		baseURL: 'http://localhost:5173',
+		baseURL: 'http://localhost:4173',
 		trace: 'on-first-retry',
 		// Consistent viewport for visual comparisons
 		viewport: { width: 1280, height: 720 }
@@ -56,8 +56,9 @@ export default defineConfig({
 		}
 	],
 	webServer: {
-		command: 'npm run dev',
-		url: 'http://localhost:5173',
-		reuseExistingServer: !isCI
+		command: 'pnpm build && pnpm preview --port 4173',
+		url: 'http://localhost:4173',
+		reuseExistingServer: !isCI,
+		timeout: 60_000
 	}
 });

@@ -14,7 +14,7 @@ export default defineConfig({
 		['json', { outputFile: 'test-results/results.json' }]
 	],
 	use: {
-		baseURL: 'http://localhost:5173',
+		baseURL: 'http://localhost:4173',
 		// Capture trace on first retry for debugging CI failures
 		trace: 'on-first-retry',
 		// Capture screenshot on failure for quick visual inspection
@@ -28,8 +28,9 @@ export default defineConfig({
 		{ name: 'webkit', use: { ...devices['Desktop Safari'] } }
 	],
 	webServer: {
-		command: 'npm run dev',
-		url: 'http://localhost:5173',
-		reuseExistingServer: !isCI
+		command: 'pnpm build && pnpm preview --port 4173',
+		url: 'http://localhost:4173',
+		reuseExistingServer: !isCI,
+		timeout: 60_000
 	}
 });
