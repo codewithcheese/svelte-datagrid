@@ -22,17 +22,98 @@ cargo install lychee
 pnpm check:links
 ```
 
-## Running Tests
+## Testing
+
+### Test Architecture
+
+The project uses a **layered testing strategy** for cross-browser DOM accuracy:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Unit Tests (Vitest/Node)                                       │
+│  Fast, no browser needed - data sources, virtualizer, utilities │
+├─────────────────────────────────────────────────────────────────┤
+│  Browser Component Tests (Vitest + Playwright/Chromium)         │
+│  Svelte component DOM behavior with real browser                │
+├─────────────────────────────────────────────────────────────────┤
+│  E2E Tests (Playwright - Chromium, Firefox, WebKit)             │
+│  Full integration testing across all major browsers             │
+├─────────────────────────────────────────────────────────────────┤
+│  Visual Regression (Playwright - all browsers)                  │
+│  Screenshot comparison to catch visual changes                  │
+├─────────────────────────────────────────────────────────────────┤
+│  Benchmarks (Playwright/Chromium)                               │
+│  Performance measurement against targets                        │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Running Tests
 
 ```bash
-# Run all tests
-pnpm test
+# Core testing (required before every commit)
+pnpm test              # Unit + browser component tests (Chromium)
+pnpm check             # TypeScript type checking
 
-# Run tests in watch mode
-pnpm test:watch
+# E2E testing (cross-browser)
+pnpm e2e               # Run on all browsers (chromium, firefox, webkit)
+pnpm e2e --project=chromium   # Run on single browser
+pnpm e2e:ui            # Interactive UI mode
 
-# Run tests with UI
-pnpm test:ui
+# Visual regression testing
+pnpm e2e:visual        # Run visual tests against baselines
+pnpm e2e:visual:update # Update baseline screenshots
+
+# Performance benchmarks
+pnpm bench:playwright  # Run interaction benchmarks
+```
+
+### Test File Locations
+
+| Pattern | Type | Environment |
+|---------|------|-------------|
+| `src/**/*.test.ts` | Unit tests | Node.js |
+| `src/**/*.svelte.test.ts` | Component tests | Chromium |
+| `e2e/*.spec.ts` | E2E tests | All browsers |
+| `e2e/visual.spec.ts` | Visual regression | All browsers |
+| `bench/*.spec.ts` | Benchmarks | Chromium |
+
+### Cross-Browser Testing
+
+E2E tests run against **production builds** (not dev server) across:
+- **Chromium** (Chrome/Edge)
+- **Firefox** (Gecko)
+- **WebKit** (Safari)
+
+CI runs all three browsers in parallel. On failure, artifacts are uploaded:
+- Screenshots (on failure)
+- Video recordings (on retry)
+- Trace files (on retry)
+
+### Writing Cross-Browser Safe Tests
+
+```typescript
+// ✅ Good: Use data-testid for stable selectors
+const row = page.getByTestId('datagrid-row').first();
+
+// ✅ Good: Wait for state, not arbitrary timeouts
+await expect(row).toHaveAttribute('aria-selected', 'true');
+
+// ❌ Bad: Arbitrary timeouts
+await page.waitForTimeout(500);
+
+// ❌ Bad: Browser-specific selectors
+const row = page.locator('.webkit-specific-class');
+```
+
+### Visual Regression Testing
+
+Baseline screenshots are stored in `e2e/__screenshots__/{browser}/` and committed to the repository.
+
+To update baselines after intentional UI changes:
+```bash
+pnpm e2e:visual:update
+git add e2e/__screenshots__/
+git commit -m "Update visual regression baselines"
 ```
 
 ## Type Checking
