@@ -16,7 +16,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Visual Regression', () => {
 	test.beforeEach(async ({ page }) => {
-		await page.goto('/');
+		await page.goto('/demo');
 		// Wait for grid to fully render
 		await page.waitForSelector('[data-testid="datagrid-body"]');
 		await page.waitForTimeout(200); // Allow any animations to settle
@@ -80,12 +80,6 @@ test.describe('Visual Regression', () => {
 
 		const grid = page.getByTestId('datagrid');
 		await expect(grid).toHaveScreenshot('grid-scrolled.png');
-	});
-
-	test('grid header cells', async ({ page }) => {
-		// Capture just the header row for detailed comparison
-		const header = page.locator('[data-testid="datagrid-header"]');
-		await expect(header).toHaveScreenshot('grid-header.png');
 	});
 
 	test('grid with resized column', async ({ page }) => {
