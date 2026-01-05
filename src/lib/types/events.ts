@@ -53,24 +53,6 @@ export interface GridCellEditEvent<TData, TValue = unknown> {
 }
 
 /**
- * Event payload for column resize events.
- */
-export interface GridColumnResizeEvent {
-	columnKey: string;
-	width: number;
-	previousWidth: number;
-}
-
-/**
- * Event payload for column reorder events.
- */
-export interface GridColumnReorderEvent {
-	columnKey: string;
-	fromIndex: number;
-	toIndex: number;
-}
-
-/**
  * Event payload for scroll events.
  */
 export interface GridScrollEvent {

@@ -2,6 +2,8 @@
 
 The main data grid component.
 
+> **Note**: `DataGrid` and `DataGridEngine` are **the same component**. `DataGrid` is an alias for `DataGridEngine` for convenience. You can use either name interchangeably.
+
 ```svelte
 <script>
   import { DataGrid } from 'svelte-datagrid';
@@ -200,12 +202,6 @@ Available component methods:
   }}
 />
 ```
-
-### Column Events
-
-| Event | Payload | Description |
-|-------|---------|-------------|
-| `oncolumnresize` | `{ column: string, width: number }` | Column resized |
 
 ## Snippets
 

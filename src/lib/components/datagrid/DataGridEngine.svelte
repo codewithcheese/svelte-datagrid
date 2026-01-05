@@ -170,10 +170,27 @@
 				}
 			},
 			onSelectionChange: (selected) => {
+				// Compute added and removed items
+				const added: (string | number)[] = [];
+				const removed: (string | number)[] = [];
+
+				for (const id of selected) {
+					if (!prevSelection.has(id)) {
+						added.push(id);
+					}
+				}
+				for (const id of prevSelection) {
+					if (!selected.has(id)) {
+						removed.push(id);
+					}
+				}
+
+				prevSelection = new Set(selected);
+
 				onselectionchange?.({
 					selected,
-					added: [],
-					removed: []
+					added,
+					removed
 				});
 			},
 			onCellEdit: oncelledit,
@@ -184,6 +201,7 @@
 	// Track previous values for prop updates
 	let prevData: TData[] | undefined;
 	let prevColumns: ColumnDef<TData, any>[] | undefined;
+	let prevSelection: Set<string | number> = new Set();
 
 	// Sync data changes
 	$effect(() => {

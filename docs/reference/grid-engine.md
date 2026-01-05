@@ -2,9 +2,11 @@
 
 The GridEngine is a pure TypeScript implementation of the grid rendering logic. It can be used directly for advanced use cases or wrapped by UI frameworks.
 
-## DataGridEngine Component
+## DataGrid / DataGridEngine Component
 
-The recommended way to use GridEngine is through the `DataGridEngine` Svelte component:
+> **Note**: `DataGrid` and `DataGridEngine` are **the same component**. `DataGrid` is an alias for `DataGridEngine` for convenience. You can use either name interchangeably.
+
+The recommended way to use GridEngine is through the Svelte component:
 
 ```svelte
 <script>
@@ -130,8 +132,10 @@ engine.destroy();
 | `rows` | `TData[]` | Current row data |
 | `totalRowCount` | `number` | Total number of rows |
 | `isLoading` | `boolean` | Loading state |
+| `queryError` | `string \| null` | Last error from DataSource query |
 | `updateData(data)` | `void` | Update row data |
 | `refresh()` | `Promise<void>` | Refresh from DataSource |
+| `waitForData()` | `Promise<void>` | Wait for pending data fetch to complete |
 
 #### Selection
 
@@ -156,13 +160,17 @@ engine.destroy();
 
 #### Sorting & Filtering
 
-| Method | Parameters | Description |
-|--------|------------|-------------|
-| `setSort(key, direction, multi?)` | string, 'asc' \| 'desc' \| null, boolean? | Set sort |
-| `toggleSort(key, multi?)` | string, boolean? | Toggle sort direction |
-| `setFilter(key, value, operator?)` | string, unknown, FilterOperator? | Set column filter |
-| `clearFilters()` | - | Clear all filters |
-| `setGlobalSearch(term)` | string | Set search term |
+| Property/Method | Type | Description |
+|-----------------|------|-------------|
+| `sortState` | `SortState[]` | Current sort configuration |
+| `filterState` | `FilterState[]` | Current filter configuration |
+| `globalSearchTerm` | `string` | Current global search term |
+| `setSort(key, direction, multi?)` | `void` | Set sort for a column |
+| `toggleSort(key, multi?)` | `void` | Toggle sort direction (asc → desc → none) |
+| `setFilter(key, value, operator?)` | `void` | Set column filter |
+| `clearFilters()` | `void` | Clear all filters |
+| `setGlobalSearch(term)` | `void` | Set global search term |
+| `clearGlobalSearch()` | `void` | Clear global search term |
 
 #### Columns
 
@@ -170,8 +178,14 @@ engine.destroy();
 |-----------------|------|-------------|
 | `visibleColumns` | `ColumnDef<TData>[]` | Visible column definitions |
 | `columnWidths` | `Map<string, number>` | Column widths |
+| `columnOrder` | `string[]` | Column keys in display order |
+| `hiddenColumns` | `Set<string>` | Set of hidden column keys |
 | `setColumnWidth(key, width)` | `void` | Set column width |
 | `setColumnVisibility(key, visible)` | `void` | Show/hide column |
+| `setColumnPinned(key, pinned)` | `void` | Pin column ('left', 'right', or false to unpin) |
+| `reorderColumn(key, targetIndex)` | `void` | Move column to new position |
+| `autoSizeColumn(key, options?)` | `void` | Auto-size column based on content |
+| `autoSizeAllColumns(options?)` | `void` | Auto-size all visible columns |
 
 #### Editing
 
@@ -181,6 +195,25 @@ engine.destroy();
 | `startEdit(rowId, columnKey)` | `boolean` | Start editing cell |
 | `commitEdit()` | `Promise<boolean>` | Commit current edit |
 | `cancelEdit()` | `void` | Cancel current edit |
+| `hasActiveEdit()` | `boolean` | Check if any cell is being edited |
+| `isEditing(rowId, columnKey)` | `boolean` | Check if specific cell is being edited |
+
+#### Focus
+
+| Property/Method | Type | Description |
+|-----------------|------|-------------|
+| `focusedRowId` | `string \| number \| null` | Currently focused row ID |
+| `focusedColumnKey` | `string \| null` | Currently focused column key |
+| `focusedRowIndex` | `number` | Currently focused row index (-1 if none) |
+| `setFocus(rowId, columnKey)` | `void` | Programmatically set focus |
+
+#### Scroll
+
+| Property/Method | Type | Description |
+|-----------------|------|-------------|
+| `scrollTop` | `number` | Current vertical scroll position |
+| `scrollLeft` | `number` | Current horizontal scroll position |
+| `setScroll(scrollTop, scrollLeft)` | `void` | Set scroll position |
 
 #### Lifecycle
 
@@ -188,6 +221,12 @@ engine.destroy();
 |--------|-------------|
 | `updateOptions(options)` | Update engine options |
 | `destroy()` | Clean up resources |
+
+#### Advanced
+
+| Method | Type | Description |
+|--------|------|-------------|
+| `getStateManager()` | `StateManager<TData>` | Access low-level StateManager (for advanced use) |
 
 ## Architecture
 
