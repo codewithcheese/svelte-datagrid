@@ -2,7 +2,7 @@
 /**
  * Validates internal route links in Svelte files.
  * Checks both href="..." attributes and href: '...' in JS objects.
- * Run with: node scripts/check-nav-links.js
+ * Run with: node scripts/check-svelte-links.js
  */
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
 import { join, dirname } from 'path';

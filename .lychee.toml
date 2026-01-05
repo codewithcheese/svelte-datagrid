@@ -11,8 +11,8 @@ offline = true
 # Include file links
 include_fragments = true
 
-# Base directory for relative links
-base = "."
+# Root directory for relative links
+root_dir = "."
 
 # Output format
 format = "compact"
