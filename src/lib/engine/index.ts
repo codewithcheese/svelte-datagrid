@@ -40,3 +40,13 @@ export {
 	type CellRenderContext,
 	type HeaderRendererOptions
 } from './render/index.js';
+
+// Events and Editors
+export {
+	EventManager,
+	createEventManager,
+	EditorManager,
+	createEditorManager,
+	type EventManagerOptions,
+	type EditorManagerOptions
+} from './events/index.js';
