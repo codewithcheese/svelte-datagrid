@@ -90,18 +90,35 @@ export class BodyRenderer<TData extends Record<string, unknown>> {
 	/**
 	 * Schedule a render on next animation frame.
 	 * Multiple calls before the frame are coalesced.
+	 * Uses both rAF and setTimeout fallback to ensure rendering in headless browsers.
 	 */
 	scheduleRender(): void {
 		if (this.isDestroyed) return;
 		if (this.pendingRender !== null) return;
 
-		this.pendingRender = requestAnimationFrame(() => {
+		const doRender = () => {
+			if (this.pendingRender !== null) {
+				cancelAnimationFrame(this.pendingRender);
+			}
+			if (this.pendingFallback !== null) {
+				clearTimeout(this.pendingFallback);
+			}
 			this.pendingRender = null;
+			this.pendingFallback = null;
 			if (!this.isDestroyed) {
 				this.render();
 			}
-		});
+		};
+
+		// Primary: requestAnimationFrame for smooth rendering
+		this.pendingRender = requestAnimationFrame(doRender);
+
+		// Fallback: setTimeout for headless browsers where rAF may be throttled
+		this.pendingFallback = window.setTimeout(doRender, 16);
 	}
+
+	// Fallback timeout handle
+	private pendingFallback: number | null = null;
 
 	/**
 	 * Perform immediate render (call sparingly).
@@ -359,6 +376,11 @@ export class BodyRenderer<TData extends Record<string, unknown>> {
 		if (this.pendingRender !== null) {
 			cancelAnimationFrame(this.pendingRender);
 			this.pendingRender = null;
+		}
+
+		if (this.pendingFallback !== null) {
+			clearTimeout(this.pendingFallback);
+			this.pendingFallback = null;
 		}
 
 		this.rowPool.destroy();
