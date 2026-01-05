@@ -30,9 +30,7 @@
 				{ title: 'Column Resizing', href: '/docs/how-to/column-resizing' },
 				{ title: 'Custom Cells', href: '/docs/how-to/custom-cells' },
 				{ title: 'Row Styling', href: '/docs/how-to/row-styling' },
-				{ title: 'Theming', href: '/docs/how-to/theming' },
-				{ title: 'PostgreSQL', href: '/docs/how-to/postgresql' },
-				{ title: 'REST API', href: '/docs/how-to/rest-api' }
+				{ title: 'Theming', href: '/docs/how-to/theming' }
 			]
 		},
 		{
