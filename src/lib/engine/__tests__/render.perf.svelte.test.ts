@@ -56,15 +56,17 @@ describe('Grid Engine Browser Performance', () => {
 
 	/**
 	 * Test: Pool warmup creates DOM elements efficiently
+	 * Note: Threshold increased from 10ms to 15ms to account for additional
+	 * accessibility attributes (data-testid, aria-selected, etc.)
 	 */
-	test('pool warmup creates 100 rows < 10ms', () => {
+	test('pool warmup creates 100 rows < 15ms', () => {
 		const start = performance.now();
 		rowPool.warmup(100);
 		const duration = performance.now() - start;
 
 		console.log(`Pool warmup (100 rows): ${duration.toFixed(2)}ms`);
 		expect(rowPool.getStats().poolSize).toBe(100);
-		expect(duration).toBeLessThan(10);
+		expect(duration).toBeLessThan(15);
 	});
 
 	/**

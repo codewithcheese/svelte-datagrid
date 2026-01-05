@@ -225,7 +225,8 @@ export class GridEngine<TData extends Record<string, unknown>> {
 			for (const entry of entries) {
 				const { width, height } = entry.contentRect;
 				const headerHeight = this.options.headerHeight ?? 48;
-				this.stateManager.setContainerSize(height - headerHeight, width);
+				// Pass width as width, and height minus header as height
+				this.stateManager.setContainerSize(width, height - headerHeight);
 			}
 		});
 

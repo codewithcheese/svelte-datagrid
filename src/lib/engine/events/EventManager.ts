@@ -331,13 +331,19 @@ export class EventManager<TData extends Record<string, unknown>> {
 
 	/**
 	 * Handle wheel events for scrolling.
-	 * This ensures wheel events work reliably across all environments.
+	 * This ensures wheel events work reliably across all environments,
+	 * especially in headless browsers where native scroll may not trigger.
 	 */
 	private handleWheel(event: WheelEvent): void {
 		const { stateManager } = this.options;
 		const newScrollTop = stateManager.scrollTop + event.deltaY;
 		const newScrollLeft = stateManager.scrollLeft + event.deltaX;
 		stateManager.setScroll(newScrollTop, newScrollLeft);
+
+		// Also update native scroll position to ensure viewport moves
+		// This is especially important in headless browsers
+		this.container.scrollTop = stateManager.scrollTop;
+		this.container.scrollLeft = stateManager.scrollLeft;
 	}
 
 	/**

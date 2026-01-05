@@ -101,6 +101,7 @@ export class RowPool {
 		row.rowId = null;
 		row.element.style.display = 'none';
 		row.element.dataset.rowId = '';
+		row.element.dataset.rowIndex = '';
 
 		// Reset visual state
 		row.element.classList.remove('selected', 'focused', 'editing');
