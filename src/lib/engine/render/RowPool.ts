@@ -104,6 +104,7 @@ export class RowPool {
 
 		// Reset visual state
 		row.element.classList.remove('selected', 'focused', 'editing');
+		row.element.setAttribute('aria-selected', 'false');
 
 		// Release all cells in this row
 		row.cells.releaseAll();
