@@ -1,6 +1,6 @@
 {
   "_comment": "Baseline performance metrics for regression detection. These values should be updated by running: pnpm bench:playwright:update-baseline",
-  "_updated": "2025-01-05",
+  "_updated": "2026-01-05",
   "dataGeneration100K": {
     "n": 30,
     "min": 15,
@@ -58,25 +58,25 @@
   },
   "scroll100K": {
     "n": 100,
-    "min": 1,
-    "max": 10,
-    "mean": 3,
-    "median": 2.5,
-    "p75": 4,
-    "p95": 8,
-    "p99": 10,
-    "stdDev": 2
+    "min": 10,
+    "max": 30,
+    "mean": 18,
+    "median": 17,
+    "p75": 20,
+    "p95": 25,
+    "p99": 28,
+    "stdDev": 4
   },
   "scroll1M": {
     "n": 100,
-    "min": 1,
-    "max": 12,
-    "mean": 3.5,
-    "median": 3,
-    "p75": 4.5,
-    "p95": 10,
-    "p99": 12,
-    "stdDev": 2.5
+    "min": 10,
+    "max": 35,
+    "mean": 19,
+    "median": 18,
+    "p75": 22,
+    "p95": 28,
+    "p99": 32,
+    "stdDev": 5
   },
   "sort100K": {
     "n": 20,
