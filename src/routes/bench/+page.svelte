@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { DataGrid, createColumnHelper } from '$lib';
+	import { DataGrid, createColumnHelper, type GridEngine } from '$lib';
 	import { tick } from 'svelte';
 	import { BENCH_ENABLED, startTimer, summarize, type BenchmarkStats } from '$lib/bench';
 
@@ -117,6 +117,9 @@
 	let height = $state(600);
 	let rowHeight = $state(40);
 
+	// DataGrid reference
+	let gridRef: DataGrid<Person> | null = $state(null);
+
 	// Helper to wait for next frame
 	const nextFrame = () => new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
 
@@ -184,6 +187,47 @@
 	 */
 	function getSelectedRowCount(): number {
 		return document.querySelectorAll('[data-testid="datagrid-row"][aria-selected="true"]').length;
+	}
+
+	/**
+	 * Debug function to get grid state
+	 */
+	function getDebugInfo(): Record<string, unknown> {
+		const body = document.querySelector('[data-testid="datagrid-body"]') as HTMLElement;
+		const visibleRows = document.querySelectorAll(
+			'[data-testid="datagrid-row"]:not([style*="display: none"])'
+		);
+		const selectedRows = document.querySelectorAll(
+			'[data-testid="datagrid-row"][aria-selected="true"]'
+		);
+		const firstVisibleRow = visibleRows[0] as HTMLElement | undefined;
+
+		return {
+			bodyScrollTop: body?.scrollTop,
+			bodyScrollHeight: body?.scrollHeight,
+			bodyClientHeight: body?.clientHeight,
+			visibleRowCount: visibleRows.length,
+			selectedRowCount: selectedRows.length,
+			firstRowIndex: firstVisibleRow?.dataset.rowIndex,
+			firstRowDisplay: firstVisibleRow?.style.display,
+			firstRowAriaSelected: firstVisibleRow?.getAttribute('aria-selected')
+		};
+	}
+
+	/**
+	 * Programmatic scroll that directly updates grid engine state
+	 */
+	function scrollTo(scrollTop: number): void {
+		const gridEngine = gridRef?.getEngine();
+		if (gridEngine) {
+			// Directly update state manager scroll position via public API
+			gridEngine.setScroll(scrollTop, gridEngine.scrollLeft);
+			// Also update the DOM scroll position
+			const body = document.querySelector('[data-testid="datagrid-body"]') as HTMLElement;
+			if (body) {
+				body.scrollTop = scrollTop;
+			}
+		}
 	}
 
 	/**
@@ -362,6 +406,8 @@
 			getSelectedRowCount,
 			isRowSelected,
 			getSearchValue,
+			getDebugInfo,
+			scrollTo,
 
 			// Programmatic benchmarks
 			benchDataGeneration,
@@ -406,6 +452,7 @@
 	<div class="grid-container">
 		{#if show}
 			<DataGrid
+				bind:this={gridRef}
 				{data}
 				{columns}
 				{height}

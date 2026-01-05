@@ -1,12 +1,12 @@
 /**
- * Tests for grid state selection and navigation features.
+ * Tests for StateManager - ported from grid-state.test.ts
  *
- * Note: Some derived state (sorting, filtering, visibleColumns) requires
- * Svelte's reactive system and is tested in browser tests instead.
+ * These tests verify that the pure TypeScript StateManager behaves
+ * identically to the Svelte-based createGridState().
  */
 
 import { describe, test, expect, vi } from 'vitest';
-import { createGridState, type GridOptions } from '../grid-state.svelte.js';
+import { StateManager, createStateManager, type StateManagerOptions } from '../state/StateManager.js';
 
 interface TestRow {
 	id: number;
@@ -28,8 +28,8 @@ const testColumns = [
 	{ key: 'age', header: 'Age' }
 ];
 
-async function createTestGridState(options?: Partial<GridOptions<TestRow>>) {
-	const state = createGridState({
+async function createTestStateManager(options?: Partial<StateManagerOptions<TestRow>>) {
+	const state = createStateManager({
 		data: [...testData],
 		columns: testColumns,
 		getRowId: (row) => row.id,
@@ -42,10 +42,10 @@ async function createTestGridState(options?: Partial<GridOptions<TestRow>>) {
 	return state;
 }
 
-describe('Grid State', () => {
+describe('StateManager', () => {
 	describe('selection', () => {
 		test('selectRow with set mode clears previous selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(1, 'set');
 			expect(state.selectedIds.has(1)).toBe(true);
@@ -58,7 +58,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRow with toggle mode toggles selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(1, 'toggle');
 			expect(state.selectedIds.has(1)).toBe(true);
@@ -68,7 +68,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRow with add mode adds to selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(1, 'add');
 			state.selectRow(2, 'add');
@@ -78,7 +78,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRow with remove mode removes from selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(1, 'add');
 			state.selectRow(2, 'add');
@@ -88,7 +88,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectAll selects all rows in processedData', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectAll();
 			expect(state.selectedIds.size).toBe(5);
@@ -97,7 +97,7 @@ describe('Grid State', () => {
 		});
 
 		test('clearSelection clears all selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectAll();
 			state.clearSelection();
@@ -105,7 +105,7 @@ describe('Grid State', () => {
 		});
 
 		test('isRowSelected returns correct status', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(1, 'set');
 			expect(state.isRowSelected(1)).toBe(true);
@@ -113,7 +113,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRow updates lastSelectedRowId', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(3, 'set');
 			expect(state.lastSelectedRowId).toBe(3);
@@ -122,7 +122,7 @@ describe('Grid State', () => {
 
 	describe('range selection', () => {
 		test('selectRange selects rows between anchor and target', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			// First click sets anchor
 			state.selectRow(2, 'set');
@@ -137,7 +137,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRange works in reverse direction', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRow(4, 'set');
 			state.selectRange(2);
@@ -148,7 +148,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRange adds to existing selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			// Add row 1 first
 			state.selectRow(1, 'add');
@@ -164,7 +164,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRange falls back to set when no anchor', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.selectRange(3);
 			expect(state.selectedIds.has(3)).toBe(true);
@@ -172,7 +172,7 @@ describe('Grid State', () => {
 		});
 
 		test('selectRange in single selection mode just selects target', async () => {
-			const state = await createTestGridState({ selectionMode: 'single' });
+			const state = await createTestStateManager({ selectionMode: 'single' });
 
 			state.selectRow(2, 'set');
 			state.selectRange(4);
@@ -184,7 +184,7 @@ describe('Grid State', () => {
 
 	describe('keyboard navigation', () => {
 		test('navigateRow updates focusedRowIndex', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 100);
 
 			// Start from first row
@@ -199,7 +199,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateRow moves focus up', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 200);
 
 			// Start at row 3 (index 2)
@@ -211,7 +211,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateRow with select updates selection', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 200);
 
 			// Start somewhere
@@ -224,7 +224,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateRow with extendSelection creates range', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 200);
 
 			state.selectRow(2, 'set');
@@ -236,7 +236,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateRow clamps to bounds', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 200);
 
 			// Navigate to start
@@ -252,7 +252,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateToFirst goes to first row', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 200);
 
 			state.selectRow(4, 'set');
@@ -264,7 +264,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateToLast goes to last row', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			state.setContainerSize(400, 200);
 
 			const id = state.navigateToLast(true);
@@ -275,7 +275,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateByPage moves by visible row count', async () => {
-			const state = await createTestGridState({ rowHeight: 40 });
+			const state = await createTestStateManager({ rowHeight: 40 });
 			state.setContainerSize(400, 80); // 2 visible rows
 
 			// Start at row 1
@@ -287,7 +287,7 @@ describe('Grid State', () => {
 		});
 
 		test('navigateRow returns null for empty data', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [],
 				columns: testColumns,
 				selectionMode: 'multiple'
@@ -302,7 +302,7 @@ describe('Grid State', () => {
 
 	describe('column visibility', () => {
 		test('setColumnVisibility updates hiddenColumns set', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setColumnVisibility('age', false);
 			expect(state.hiddenColumns.has('age')).toBe(true);
@@ -312,7 +312,7 @@ describe('Grid State', () => {
 		});
 
 		test('multiple columns can be hidden', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setColumnVisibility('age', false);
 			state.setColumnVisibility('name', false);
@@ -324,7 +324,7 @@ describe('Grid State', () => {
 
 	describe('sorting state', () => {
 		test('setSort updates sortState', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setSort('age', 'asc');
 			expect(state.sortState).toHaveLength(1);
@@ -332,7 +332,7 @@ describe('Grid State', () => {
 		});
 
 		test('setSort with null direction clears sort', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setSort('age', 'asc');
 			state.setSort('age', null);
@@ -340,7 +340,7 @@ describe('Grid State', () => {
 		});
 
 		test('toggleSort cycles through asc, desc, null', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.toggleSort('age');
 			expect(state.sortState[0]?.direction).toBe('asc');
@@ -353,7 +353,7 @@ describe('Grid State', () => {
 		});
 
 		test('multi-sort adds additional columns', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setSort('age', 'asc', true);
 			state.setSort('name', 'desc', true);
@@ -366,7 +366,7 @@ describe('Grid State', () => {
 
 	describe('filter state', () => {
 		test('setFilter updates filterState', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setFilter('name', 'Alice', 'eq');
 			expect(state.filterState).toHaveLength(1);
@@ -374,7 +374,7 @@ describe('Grid State', () => {
 		});
 
 		test('setFilter with empty value removes filter', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setFilter('name', 'Alice', 'eq');
 			state.setFilter('name', '', 'eq');
@@ -382,7 +382,7 @@ describe('Grid State', () => {
 		});
 
 		test('clearFilters removes all filters', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setFilter('name', 'Alice', 'eq');
 			state.setFilter('age', 30, 'gt');
@@ -393,14 +393,14 @@ describe('Grid State', () => {
 
 	describe('global search', () => {
 		test('setGlobalSearch updates globalSearchTerm', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setGlobalSearch('alice');
 			expect(state.globalSearchTerm).toBe('alice');
 		});
 
 		test('clearGlobalSearch clears the search term', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setGlobalSearch('alice');
 			state.clearGlobalSearch();
@@ -408,7 +408,7 @@ describe('Grid State', () => {
 		});
 
 		test('empty search term does not affect data', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setGlobalSearch('');
 			// Wait for the search to be applied via DataSource
@@ -417,7 +417,7 @@ describe('Grid State', () => {
 		});
 
 		test('whitespace-only search is treated as empty', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setGlobalSearch('   ');
 			// Wait for the search to be applied via DataSource
@@ -428,14 +428,14 @@ describe('Grid State', () => {
 
 	describe('column resizing', () => {
 		test('setColumnWidth updates columnWidths', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setColumnWidth('name', 200);
 			expect(state.columnWidths.get('name')).toBe(200);
 		});
 
 		test('setColumnWidth clamps to minWidth', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [{ key: 'name', header: 'Name', minWidth: 100 }],
 				selectionMode: 'multiple'
@@ -447,7 +447,7 @@ describe('Grid State', () => {
 		});
 
 		test('setColumnWidth clamps to maxWidth', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [{ key: 'name', header: 'Name', maxWidth: 300 }],
 				selectionMode: 'multiple'
@@ -461,7 +461,7 @@ describe('Grid State', () => {
 
 	describe('scroll and viewport', () => {
 		test('setScroll updates scroll position', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			// Container smaller than content to allow scrolling
 			// 5 rows * 40px = 200px total, container 80px = scrollable
 			state.setContainerSize(400, 80);
@@ -476,7 +476,7 @@ describe('Grid State', () => {
 		});
 
 		test('setContainerSize updates container dimensions', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setContainerSize(800, 600);
 			expect(state.containerWidth).toBe(800);
@@ -490,7 +490,7 @@ describe('Grid State', () => {
 				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
 			}
 
-			const state = createGridState({
+			const state = createStateManager({
 				data: largeData,
 				columns: testColumns,
 				getRowId: (row) => row.id,
@@ -541,7 +541,7 @@ describe('Grid State', () => {
 				largeData.push({ id: i + 1, name: `User ${i + 1}`, age: 20 + (i % 50) });
 			}
 
-			const state = createGridState({
+			const state = createStateManager({
 				data: largeData,
 				columns: testColumns,
 				getRowId: (row) => row.id,
@@ -570,7 +570,7 @@ describe('Grid State', () => {
 
 	describe('focus management', () => {
 		test('setFocus updates focusedRowId and focusedColumnKey', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setFocus(2, 'name');
 			expect(state.focusedRowId).toBe(2);
@@ -578,7 +578,7 @@ describe('Grid State', () => {
 		});
 
 		test('setFocus with null clears focus', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setFocus(2, 'name');
 			state.setFocus(null, null);
@@ -589,7 +589,7 @@ describe('Grid State', () => {
 
 	describe('data updates', () => {
 		test('updateData replaces data', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			const newData = [{ id: 10, name: 'New', age: 99 }];
 			state.updateData(newData);
@@ -599,7 +599,7 @@ describe('Grid State', () => {
 		});
 
 		test('updateColumns replaces columns', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			const newColumns = [{ key: 'foo', header: 'Foo' }];
 			state.updateColumns(newColumns);
@@ -609,7 +609,7 @@ describe('Grid State', () => {
 
 	describe('cell editing', () => {
 		test('startEdit initializes edit state', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			const result = state.startEdit(1, 'name');
 
@@ -622,7 +622,7 @@ describe('Grid State', () => {
 		});
 
 		test('startEdit returns false for non-existent row', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			const result = state.startEdit(999, 'name');
 
@@ -631,7 +631,7 @@ describe('Grid State', () => {
 		});
 
 		test('startEdit returns false for column with editable: false', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [
 					{ key: 'id', header: 'ID', editable: false },
@@ -650,7 +650,7 @@ describe('Grid State', () => {
 		});
 
 		test('startEdit focuses the cell', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.startEdit(2, 'age');
 
@@ -660,7 +660,7 @@ describe('Grid State', () => {
 		});
 
 		test('setEditValue updates the edit value', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.startEdit(1, 'name');
 			state.setEditValue('Updated Name');
@@ -669,7 +669,7 @@ describe('Grid State', () => {
 		});
 
 		test('setEditValue does nothing without active edit', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.setEditValue('Test Value');
 
@@ -677,7 +677,7 @@ describe('Grid State', () => {
 		});
 
 		test('setEditValue calls onCellValidate and sets error', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: testColumns,
 				getRowId: (row) => row.id,
@@ -698,7 +698,7 @@ describe('Grid State', () => {
 		});
 
 		test('commitEdit clears edit state on success', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.startEdit(1, 'name');
 			state.setEditValue('New Name');
@@ -712,7 +712,7 @@ describe('Grid State', () => {
 			let callbackCalled = false;
 			let callbackArgs: { rowId: any; columnKey: any; newValue: any; oldValue: any } | null = null;
 
-			const state = createGridState({
+			const state = createStateManager({
 				data: [...testData],
 				columns: testColumns,
 				getRowId: (row) => row.id,
@@ -738,7 +738,7 @@ describe('Grid State', () => {
 		test('commitEdit does not call onCellEdit when value unchanged', async () => {
 			let callbackCalled = false;
 
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: testColumns,
 				getRowId: (row) => row.id,
@@ -757,7 +757,7 @@ describe('Grid State', () => {
 		});
 
 		test('commitEdit returns false on validation error', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: testColumns,
 				getRowId: (row) => row.id,
@@ -779,7 +779,7 @@ describe('Grid State', () => {
 		});
 
 		test('commitEdit returns false when no edit in progress', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			const result = await state.commitEdit();
 
@@ -787,7 +787,7 @@ describe('Grid State', () => {
 		});
 
 		test('cancelEdit clears edit state', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.startEdit(1, 'name');
 			state.setEditValue('Changed');
@@ -797,7 +797,7 @@ describe('Grid State', () => {
 		});
 
 		test('isEditing returns true for active edit cell', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			state.startEdit(1, 'name');
 
@@ -807,13 +807,13 @@ describe('Grid State', () => {
 		});
 
 		test('isEditing returns false when no edit', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			expect(state.isEditing(1, 'name')).toBe(false);
 		});
 
 		test('hasActiveEdit returns true when editing', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			expect(state.hasActiveEdit()).toBe(false);
 
@@ -827,7 +827,7 @@ describe('Grid State', () => {
 		});
 
 		test('editState getter returns current edit state', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			expect(state.editState).toBeNull();
 
@@ -877,7 +877,7 @@ describe('Grid State', () => {
 					})
 				});
 
-				const state = createGridState({
+				const state = createStateManager({
 					dataSource: mockDataSource,
 					columns: testColumns,
 					getRowId: (row) => row.id,
@@ -906,7 +906,7 @@ describe('Grid State', () => {
 					}))
 				});
 
-				const state = createGridState({
+				const state = createStateManager({
 					dataSource: mockDataSource,
 					columns: testColumns,
 					getRowId: (row) => row.id,
@@ -929,7 +929,7 @@ describe('Grid State', () => {
 				const mockDataSource = createMockDataSource();
 
 				let callbackCalled = false;
-				const state = createGridState({
+				const state = createStateManager({
 					dataSource: mockDataSource,
 					columns: testColumns,
 					getRowId: (row) => row.id,
@@ -952,7 +952,7 @@ describe('Grid State', () => {
 
 	describe('column pinning', () => {
 		test('pinnedLeftColumns returns only left-pinned columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [
 					{ key: 'id', header: 'ID', pinned: 'left' },
@@ -969,7 +969,7 @@ describe('Grid State', () => {
 		});
 
 		test('scrollableColumns returns non-pinned columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [
 					{ key: 'id', header: 'ID', pinned: 'left' },
@@ -986,7 +986,7 @@ describe('Grid State', () => {
 		});
 
 		test('pinnedLeftWidth calculates total width of pinned columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [
 					{ key: 'id', header: 'ID', width: 80, pinned: 'left' },
@@ -1002,7 +1002,7 @@ describe('Grid State', () => {
 		});
 
 		test('scrollableWidth calculates total width of scrollable columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [
 					{ key: 'id', header: 'ID', width: 80, pinned: 'left' },
@@ -1018,7 +1018,7 @@ describe('Grid State', () => {
 		});
 
 		test('setColumnPinned updates column pinning', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			expect(state.pinnedLeftColumns.length).toBe(0);
 
@@ -1029,7 +1029,7 @@ describe('Grid State', () => {
 		});
 
 		test('setColumnPinned reorders columns (pinned first)', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 
 			// Initially: id, name, age
 			expect(state.columnOrder).toEqual(['id', 'name', 'age']);
@@ -1042,7 +1042,7 @@ describe('Grid State', () => {
 		});
 
 		test('setColumnPinned to false unpins a column', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: testData,
 				columns: [
 					{ key: 'id', header: 'ID', pinned: 'left' },
@@ -1065,7 +1065,7 @@ describe('Grid State', () => {
 
 	describe('auto-size columns', () => {
 		test('autoSizeColumn updates column width based on content', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [
 					{ id: 1, name: 'Short', age: 30 },
 					{ id: 2, name: 'A Very Long Name Here', age: 25 }
@@ -1091,7 +1091,7 @@ describe('Grid State', () => {
 		});
 
 		test('autoSizeColumn respects minWidth', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'X', age: 30 }], // Very short content
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1110,7 +1110,7 @@ describe('Grid State', () => {
 		});
 
 		test('autoSizeColumn respects maxWidth', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'A Very Very Very Long Name That Is Way Too Wide', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1129,7 +1129,7 @@ describe('Grid State', () => {
 		});
 
 		test('autoSizeAllColumns sizes all visible columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [
 					{ id: 12345, name: 'Short', age: 30 },
 					{ id: 67890, name: 'Much Longer Name Here', age: 99999 }
@@ -1153,7 +1153,7 @@ describe('Grid State', () => {
 		});
 
 		test('autoSizeColumn does nothing for unknown column', async () => {
-			const state = await createTestGridState();
+			const state = await createTestStateManager();
 			const widthsBefore = new Map(state.columnWidths);
 
 			state.autoSizeColumn('unknown');
@@ -1165,7 +1165,7 @@ describe('Grid State', () => {
 
 	describe('Column Reordering', () => {
 		test('reorderColumn moves column to new position', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1186,7 +1186,7 @@ describe('Grid State', () => {
 		});
 
 		test('reorderColumn moves column from earlier to later position', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1205,7 +1205,7 @@ describe('Grid State', () => {
 		});
 
 		test('reorderColumn returns false for unknown column', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1224,7 +1224,7 @@ describe('Grid State', () => {
 		});
 
 		test('reorderColumn returns true when column is already at target position', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1243,7 +1243,7 @@ describe('Grid State', () => {
 		});
 
 		test('reorderColumn prevents moving between pinned and non-pinned columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60, pinned: 'left' },
@@ -1263,7 +1263,7 @@ describe('Grid State', () => {
 		});
 
 		test('reorderColumn works within pinned columns', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60, pinned: 'left' },
@@ -1283,7 +1283,7 @@ describe('Grid State', () => {
 		});
 
 		test('reorderColumn updates visibleColumns order', async () => {
-			const state = createGridState({
+			const state = createStateManager({
 				data: [{ id: 1, name: 'Alice', age: 30 }],
 				columns: [
 					{ key: 'id', header: 'ID', width: 60 },
@@ -1299,6 +1299,52 @@ describe('Grid State', () => {
 
 			const visibleKeys = state.visibleColumns.map(c => c.key);
 			expect(visibleKeys).toEqual(['age', 'id', 'name']);
+		});
+	});
+
+	describe('event emission', () => {
+		test('emits selection event on selectRow', async () => {
+			const state = await createTestStateManager();
+			const handler = vi.fn();
+			state.on('selection', handler);
+
+			state.selectRow(1, 'set');
+
+			expect(handler).toHaveBeenCalledWith({ selectedIds: expect.any(Set) });
+		});
+
+		test('emits sort event on setSort', async () => {
+			const state = await createTestStateManager();
+			const handler = vi.fn();
+			state.on('sort', handler);
+
+			state.setSort('age', 'asc');
+
+			expect(handler).toHaveBeenCalledWith({ sortState: [{ columnKey: 'age', direction: 'asc' }] });
+		});
+
+		test('emits scroll event on setScroll', async () => {
+			const state = await createTestStateManager();
+			state.setContainerSize(400, 80);
+			const handler = vi.fn();
+			state.on('scroll', handler);
+
+			state.setScroll(50, 0);
+
+			expect(handler).toHaveBeenCalledWith({ scrollTop: 50, scrollLeft: 0 });
+		});
+
+		test('unsubscribe stops event emission', async () => {
+			const state = await createTestStateManager();
+			const handler = vi.fn();
+			const unsubscribe = state.on('selection', handler);
+
+			state.selectRow(1, 'set');
+			expect(handler).toHaveBeenCalledTimes(1);
+
+			unsubscribe();
+			state.selectRow(2, 'set');
+			expect(handler).toHaveBeenCalledTimes(1); // Not called again
 		});
 	});
 });

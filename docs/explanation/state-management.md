@@ -1,295 +1,394 @@
 # State Management
 
-This document explains how Svelte DataGrid manages reactive state using Svelte 5 runes.
+This document explains how Svelte DataGrid manages state using the StateManager class.
 
-## The Runes Model
+## The Event-Based Model
 
-Svelte 5 introduced "runes" - a new reactivity system:
+StateManager uses pure TypeScript with event-based notifications:
 
-- `$state` - Mutable reactive state
-- `$derived` - Computed values that update automatically
-- `$effect` - Side effects that run when dependencies change
+- State is stored in typed class properties
+- Changes trigger events that renderers subscribe to
+- No framework-specific reactivity (no Svelte stores, no React state)
 
-The grid uses all three to create a responsive, efficient state system.
+This approach provides:
+- Maximum performance (no reactivity overhead)
+- Framework independence (same engine works anywhere)
+- Explicit control over update timing
+- Easy testing and debugging
 
 ## State Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ GridState                                               │
+│ StateManager                                            │
 │                                                         │
-│  $state (mutable)           $derived (computed)         │
-│  ┌─────────────────┐        ┌─────────────────────┐    │
-│  │ data            │───────►│ processedData       │    │
-│  │ selectedRows    │        │ (sorted, filtered)  │    │
-│  │ currentSort     │        └──────────┬──────────┘    │
-│  │ filters         │                   │               │
-│  │ globalSearchTerm│                   ▼               │
-│  │ scrollTop       │        ┌─────────────────────┐    │
-│  │ columnWidths    │        │ visibleRows         │    │
-│  │ columnVisibility│        │ (virtualized slice) │    │
-│  └─────────────────┘        └─────────────────────┘    │
+│  Properties (source of truth)    Events (notifications) │
+│  ┌─────────────────┐            ┌─────────────────────┐│
+│  │ rows            │───────────►│ 'data'              ││
+│  │ selectedIds     │───────────►│ 'selection'         ││
+│  │ sortState       │───────────►│ 'sort'              ││
+│  │ filterState     │───────────►│ 'filter'            ││
+│  │ scrollTop/Left  │───────────►│ 'scroll'            ││
+│  │ columnWidths    │───────────►│ 'columns'           ││
+│  │ focusedRowId    │───────────►│ 'focus'             ││
+│  └─────────────────┘            └─────────────────────┘│
 │                                                         │
 │  Methods                                                │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │ selectRow(), setSort(), setFilter(), etc.       │   │
 │  └─────────────────────────────────────────────────┘   │
+│                                                         │
+│  Subscriptions                                          │
+│  ┌─────────────────────────────────────────────────┐   │
+│  │ on(event, callback) - subscribe to changes      │   │
+│  │ off(event, callback) - unsubscribe              │   │
+│  └─────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
 ```
 
-## Mutable State ($state)
+## State Properties
 
-These are the "sources of truth" that can be directly modified:
-
-```typescript
-// Primary data
-let data = $state<TData[]>([]);
-let columns = $state<ColumnDef[]>([]);
-
-// Selection
-let selectedRows = $state(new Set<string | number>());
-let focusedRowId = $state<string | number | null>(null);
-
-// Sorting
-let currentSort = $state<SortSpec[]>([]);
-
-// Filtering
-let filters = $state(new Map<string, FilterValue>());
-let globalSearchTerm = $state('');
-
-// Scroll position
-let scrollTop = $state(0);
-let scrollLeft = $state(0);
-
-// Column configuration
-let columnWidths = $state(new Map<string, number>());
-let columnVisibility = $state(new Map<string, boolean>());
-```
-
-State is only mutated through methods, never directly by components.
-
-## Derived State ($derived)
-
-Computed values that automatically update when dependencies change:
+### Data State
 
 ```typescript
-// Apply filters and sorting to data
-const processedData = $derived.by(() => {
-  let result = [...data];
+// Primary data from DataSource
+rows: TData[]              // Current rows (after sort/filter)
+totalRowCount: number      // Total rows in DataSource
+isLoading: boolean         // Fetch in progress
+queryError: string | null  // Last query error
 
-  // Apply global search
-  if (globalSearchTerm.trim()) {
-    result = result.filter(row => matchesSearch(row, globalSearchTerm));
-  }
-
-  // Apply column filters
-  for (const [field, filter] of filters) {
-    result = result.filter(row => matchesFilter(row, field, filter));
-  }
-
-  // Apply sorting
-  if (currentSort.length > 0) {
-    result = sortData(result, currentSort);
-  }
-
-  return result;
-});
-
-// Visible columns only
-const visibleColumns = $derived(
-  columns.filter(col => columnVisibility.get(col.key) !== false)
-);
-
-// Current visible row range
-const visibleRange = $derived({
-  startIndex: Math.floor(scrollTop / rowHeight),
-  endIndex: Math.ceil((scrollTop + viewportHeight) / rowHeight)
-});
-
-// Rows actually rendered
-const visibleRows = $derived(
-  processedData.slice(
-    Math.max(0, visibleRange.startIndex - overscan),
-    visibleRange.endIndex + overscan
-  )
-);
+// Visible rows (virtualized slice)
+visibleRows: TData[]       // Rows in viewport
+startIndex: number         // First visible row index
+endIndex: number           // Last visible row index
 ```
 
-### Derived Chain
-
-Derived values can depend on other derived values:
-
-```
-data ──────────────────►┐
-                        │
-globalSearchTerm ──────►├──► processedData ──► visibleRange ──► visibleRows
-                        │
-filters ───────────────►│
-                        │
-currentSort ───────────►┘
-```
-
-When `currentSort` changes, `processedData` recomputes, which causes `visibleRows` to recompute. Svelte handles this automatically.
-
-## Side Effects ($effect)
-
-Used sparingly for DOM synchronization and external updates:
+### Column State
 
 ```typescript
-// Track scroll position changes
-$effect(() => {
-  if (scrollTop !== previousScrollTop) {
-    // Emit scroll event, update virtualization
-    onScroll?.(scrollTop);
-  }
-});
-
-// Sync selection changes to callback
-$effect(() => {
-  const selected = new Set(selectedRows);
-  if (selectedChanged(selected, previousSelected)) {
-    onSelectionChange?.({ selected, added, removed });
-  }
-});
+columns: ColumnDef<TData>[]           // Column definitions
+columnWidths: Map<string, number>     // Current widths
+columnOrder: string[]                 // Display order
+pinnedLeftColumns: ColumnDef[]        // Left-pinned
+pinnedRightColumns: ColumnDef[]       // Right-pinned
+scrollableColumns: ColumnDef[]        // Non-pinned
 ```
 
-We minimize `$effect` usage because:
-- They can cause infinite loops if not careful
-- `$derived` is usually sufficient
-- Effects are harder to reason about
+### Selection State
+
+```typescript
+selectedIds: Set<string | number>     // Selected row IDs
+focusedRowId: string | number | null  // Currently focused
+focusedColumnKey: string | null       // Focused cell column
+lastSelectedRowId: string | number | null  // For range selection
+```
+
+### Sort & Filter State
+
+```typescript
+sortState: SortState[]                // Current sort config
+filterState: FilterState[]            // Column filters
+globalSearchTerm: string              // Search text
+```
+
+### Scroll State
+
+```typescript
+scrollTop: number          // Vertical scroll position
+scrollLeft: number         // Horizontal scroll position
+viewportHeight: number     // Visible area height
+viewportWidth: number      // Visible area width
+```
+
+## Event System
+
+StateManager uses a simple pub/sub pattern:
+
+```typescript
+class StateManager<TData> {
+  private listeners = new Map<string, Set<Function>>();
+
+  // Subscribe to an event
+  on(event: string, callback: Function): void {
+    if (!this.listeners.has(event)) {
+      this.listeners.set(event, new Set());
+    }
+    this.listeners.get(event)!.add(callback);
+  }
+
+  // Unsubscribe from an event
+  off(event: string, callback: Function): void {
+    this.listeners.get(event)?.delete(callback);
+  }
+
+  // Emit an event (internal)
+  private emit(event: string, data?: unknown): void {
+    this.listeners.get(event)?.forEach(cb => cb(data));
+  }
+}
+```
+
+### Event Types
+
+| Event | Trigger | Payload |
+|-------|---------|---------|
+| `data` | Row data changes | `TData[]` |
+| `selection` | Selection changes | `Set<string\|number>` |
+| `sort` | Sort state changes | `SortState[]` |
+| `filter` | Filter state changes | `FilterState[]` |
+| `scroll` | Scroll position changes | `{ top, left }` |
+| `columns` | Column config changes | `ColumnDef[]` |
+| `focus` | Focus changes | `{ rowId, columnKey }` |
+
+### Subscribing to Events
+
+Renderers subscribe to relevant events:
+
+```typescript
+// BodyRenderer subscribes to data and scroll
+stateManager.on('data', () => this.render());
+stateManager.on('scroll', () => this.updatePositions());
+stateManager.on('selection', () => this.updateSelectionClasses());
+
+// HeaderRenderer subscribes to sort and columns
+stateManager.on('sort', () => this.updateSortIndicators());
+stateManager.on('columns', () => this.render());
+```
 
 ## State Mutation Pattern
 
 State is only mutated through methods:
 
 ```typescript
-function selectRow(rowId: string | number, options?: SelectOptions) {
-  if (options?.toggle && selectedRows.has(rowId)) {
-    selectedRows.delete(rowId);
-  } else {
-    if (!options?.extend) {
-      selectedRows.clear();
-    }
-    selectedRows.add(rowId);
+selectRow(rowId: string | number, mode?: 'toggle' | 'add' | 'remove' | 'set') {
+  const prev = new Set(this._selectedIds);
+
+  switch (mode) {
+    case 'toggle':
+      if (this._selectedIds.has(rowId)) {
+        this._selectedIds.delete(rowId);
+      } else {
+        this._selectedIds.add(rowId);
+      }
+      break;
+    case 'add':
+      this._selectedIds.add(rowId);
+      break;
+    case 'remove':
+      this._selectedIds.delete(rowId);
+      break;
+    default: // 'set'
+      this._selectedIds.clear();
+      this._selectedIds.add(rowId);
   }
-  // Svelte automatically detects Set mutations
+
+  // Emit only if changed
+  if (!setsEqual(prev, this._selectedIds)) {
+    this.emit('selection', this._selectedIds);
+  }
 }
 
-function setSort(sort: SortSpec[]) {
-  currentSort = sort;
-  // Assignment triggers reactive update
-}
+setSort(columnKey: string, direction: 'asc' | 'desc' | null, multiSort = false) {
+  // Update sort state
+  if (!multiSort) {
+    this._sortState = [];
+  }
 
-function setFilter(column: string, filter: FilterValue) {
-  filters.set(column, filter);
-  // Map mutation triggers reactive update
+  const existing = this._sortState.findIndex(s => s.columnKey === columnKey);
+  if (direction === null) {
+    if (existing >= 0) this._sortState.splice(existing, 1);
+  } else {
+    if (existing >= 0) {
+      this._sortState[existing].direction = direction;
+    } else {
+      this._sortState.push({ columnKey, direction });
+    }
+  }
+
+  this.emit('sort', this._sortState);
+
+  // Fetch new data with updated sort
+  this.fetchData();
 }
 ```
 
 This pattern ensures:
 - All state changes are traceable
 - Business logic lives in one place
-- Components remain simple
+- Events only fire when state actually changes
+- Renderers don't need to know mutation details
 
-## Context Distribution
+## DataSource Integration
 
-GridState is shared via Svelte context:
+StateManager delegates data operations to DataSource:
 
 ```typescript
-// In DataGrid.svelte
-const gridState = createGridState({ data, columns, ... });
-setContext('datagrid', { gridState, options });
+async fetchData(): Promise<void> {
+  this._isLoading = true;
+  this.emit('loading', true);
 
-// In any child component
-const { gridState } = getContext<DataGridContext>('datagrid');
+  try {
+    const response = await this.dataSource.getRows({
+      sort: this._sortState.map(s => ({
+        field: s.columnKey,
+        direction: s.direction
+      })),
+      filter: this.buildFilterExpression(),
+      pagination: {
+        offset: 0,
+        limit: Number.MAX_SAFE_INTEGER
+      }
+    });
 
-// Components can read and call methods
-<Row
-  isSelected={gridState.isRowSelected(rowId)}
-  onclick={() => gridState.selectRow(rowId)}
-/>
+    this._rows = response.data;
+    this._totalRowCount = response.meta.totalCount ?? response.data.length;
+    this.emit('data', this._rows);
+  } catch (error) {
+    this._queryError = error.message;
+    this.emit('error', this._queryError);
+  } finally {
+    this._isLoading = false;
+    this.emit('loading', false);
+  }
+}
+```
+
+### Data Flow
+
+```
+User clicks sort header
+        │
+        ▼
+StateManager.toggleSort()
+        │
+        ▼
+Update sortState + emit('sort')
+        │
+        ▼
+Call fetchData()
+        │
+        ▼
+DataSource.getRows({ sort: [...] })
+        │
+        ▼
+Update rows + emit('data')
+        │
+        ▼
+BodyRenderer.render() (via subscription)
+```
+
+## Computed Properties
+
+StateManager provides computed getters for derived state:
+
+```typescript
+get visibleRows(): TData[] {
+  const start = Math.max(0, this.startIndex - this.overscan);
+  const end = Math.min(this._rows.length, this.endIndex + this.overscan);
+  return this._rows.slice(start, end);
+}
+
+get pinnedLeftColumns(): ColumnDef<TData>[] {
+  return this._columns.filter(c => c.pinned === 'left');
+}
+
+get scrollableColumns(): ColumnDef<TData>[] {
+  return this._columns.filter(c => !c.pinned);
+}
+
+get totalWidth(): number {
+  return this._columns.reduce((sum, col) =>
+    sum + (this._columnWidths.get(col.key) ?? col.width ?? 150), 0);
+}
 ```
 
 ## Why This Approach?
 
-### Single source of truth
+### No framework reactivity
 
-All state lives in GridState. Components never have local state that duplicates grid state. This prevents sync issues.
+Instead of Svelte stores or React state:
+- Zero reactivity overhead in hot paths
+- Same code works in any environment
+- Explicit control over when updates happen
+- Easy to understand and debug
 
-### Derived over computed in components
+### Event-based notifications
 
-Instead of computing in each component:
-
-```svelte
-<!-- Bad: computed in component -->
-{#each data.filter(x => x.active) as row}
-```
-
-We compute in GridState:
-
-```svelte
-<!-- Good: use derived from state -->
-{#each gridState.processedData as row}
-```
-
-This ensures:
-- Computation happens once, not per render
-- All components see the same processed data
-- Easier to optimize and cache
+Instead of automatic re-renders:
+- Renderers update only when their data changes
+- Fine-grained control over what updates
+- No unnecessary DOM operations
+- Predictable performance
 
 ### Methods over direct mutation
 
 Instead of exposing state directly:
-
 ```typescript
 // Bad: direct state access
-gridState.selectedRows.add(id);
-```
+stateManager._selectedIds.add(id);
 
-We expose methods:
-
-```typescript
 // Good: method with logic
-gridState.selectRow(id, { extend: true });
+stateManager.selectRow(id, 'add');
 ```
 
 Methods can:
 - Validate inputs
 - Apply business rules
-- Trigger side effects consistently
+- Emit appropriate events
+- Batch related changes
 
 ## Performance Considerations
 
-### Derived memoization
+### Selective event emission
 
-Svelte automatically memoizes derived values. `processedData` only recomputes when its dependencies (`data`, `filters`, `currentSort`) change.
-
-### Granular reactivity
-
-We structure state to minimize unnecessary updates:
+Events only emit when state actually changes:
 
 ```typescript
-// Bad: one big object
-let state = $state({ data: [], sort: [], selection: new Set() });
-
-// Good: separate state pieces
-let data = $state([]);
-let sort = $state([]);
-let selection = $state(new Set());
+setScroll(top: number, left: number) {
+  const changed = top !== this._scrollTop || left !== this._scrollLeft;
+  if (changed) {
+    this._scrollTop = top;
+    this._scrollLeft = left;
+    this.emit('scroll', { top, left });
+  }
+}
 ```
 
-Changing `sort` doesn't trigger re-renders in components that only read `selection`.
+### Batched data fetches
 
-### Batched updates
-
-Multiple state changes in one function automatically batch:
+Multiple filter/sort changes don't trigger multiple fetches:
 
 ```typescript
-function resetGrid() {
-  clearSelection();   // selectedRows update
-  clearAllFilters();  // filters update
-  clearSort();        // currentSort update
-  // Svelte batches these into one update cycle
+// Uses requestAnimationFrame to batch
+private scheduleFetch() {
+  if (this._fetchScheduled) return;
+  this._fetchScheduled = true;
+  requestAnimationFrame(() => {
+    this._fetchScheduled = false;
+    this.fetchData();
+  });
+}
+```
+
+### Lazy computation
+
+Expensive computations are cached until invalidated:
+
+```typescript
+private _pinnedLeftCache: ColumnDef[] | null = null;
+
+get pinnedLeftColumns(): ColumnDef[] {
+  if (!this._pinnedLeftCache) {
+    this._pinnedLeftCache = this._columns.filter(c => c.pinned === 'left');
+  }
+  return this._pinnedLeftCache;
+}
+
+// Cache invalidated when columns change
+updateColumns(columns: ColumnDef[]) {
+  this._columns = columns;
+  this._pinnedLeftCache = null;
+  this.emit('columns', columns);
 }
 ```
 
@@ -297,4 +396,4 @@ function resetGrid() {
 
 - [Architecture Overview](./architecture.md) - Overall structure
 - [Performance](./performance.md) - Optimization strategies
-- [Reference: Grid State](../reference/grid-state.md) - API documentation
+- [Reference: GridEngine](../reference/grid-engine.md) - API documentation

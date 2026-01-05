@@ -1,19 +1,40 @@
 # Grid State Reference
 
-The grid state object provides programmatic access to grid data, selection, navigation, and configuration.
+The grid provides programmatic access to data, selection, navigation, and configuration through the GridEngine API.
 
 ## Accessing Grid State
 
-Bind to `gridState` to access the API:
+Use the `getEngine()` method to access the GridEngine API:
 
 ```svelte
 <script>
-  let gridState;
+  import { DataGrid } from 'svelte-datagrid';
+
+  let gridComponent;
+
+  function handleSelectAll() {
+    const engine = gridComponent.getEngine();
+    engine?.selectAll();
+  }
 </script>
 
-<DataGrid {data} {columns} bind:gridState />
+<DataGrid {data} {columns} bind:this={gridComponent} />
 
-<button onclick={() => gridState.selectAll()}>
+<button onclick={handleSelectAll}>
+  Select All
+</button>
+```
+
+Or use component methods directly:
+
+```svelte
+<script>
+  let gridComponent;
+</script>
+
+<DataGrid {data} {columns} bind:this={gridComponent} />
+
+<button onclick={() => gridComponent.selectAll()}>
   Select All
 </button>
 ```
@@ -25,60 +46,21 @@ Bind to `gridState` to access the API:
 | Property | Type | Description |
 |----------|------|-------------|
 | `rows` | `TData[]` | Current data from DataSource (after sort/filter) |
-| `data` | `TData[]` | Alias for `rows` (backwards compatibility) |
-| `processedData` | `TData[]` | Alias for `rows` (backwards compatibility) |
 | `totalRowCount` | `number` | Total row count from DataSource |
-| `visibleRows` | `TData[]` | Currently visible (virtualized) rows |
-| `visibleRange` | `{ startIndex: number, endIndex: number }` | Visible row indices |
 | `isLoading` | `boolean` | Whether data is being fetched from DataSource |
-| `queryError` | `string \| null` | Error message from last DataSource query |
 
 ### Column Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `columns` | `ColumnDef[]` | Column definitions |
-| `visibleColumns` | `ColumnDef[]` | Visible columns only |
-| `columnOrder` | `string[]` | Current column order (array of column keys) |
+| `visibleColumns` | `ColumnDef[]` | Visible column definitions |
 | `columnWidths` | `Map<string, number>` | Current column widths |
-| `pinnedLeftColumns` | `ColumnDef[]` | Columns pinned to the left edge |
-| `pinnedRightColumns` | `ColumnDef[]` | Columns pinned to the right edge |
-| `scrollableColumns` | `ColumnDef[]` | Non-pinned columns (scrollable area) |
-| `pinnedLeftWidth` | `number` | Total width of left-pinned columns |
-| `scrollableWidth` | `number` | Total width of scrollable columns |
-| `totalWidth` | `number` | Total grid width |
 
 ### Selection Properties
 
 | Property | Type | Description |
 |----------|------|-------------|
 | `selectedIds` | `Set<string \| number>` | Selected row IDs |
-| `focusedRowId` | `string \| number \| null` | Currently focused row ID |
-| `focusedRowIndex` | `number` | Currently focused row index (-1 if none) |
-| `focusedColumnKey` | `string \| null` | Currently focused column key |
-| `lastSelectedRowId` | `string \| number \| null` | Last selected row (for range selection) |
-
-### Scroll Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `scrollTop` | `number` | Current vertical scroll position |
-| `scrollLeft` | `number` | Current horizontal scroll position |
-| `offsetY` | `number` | Vertical offset for virtualization |
-| `totalHeight` | `number` | Total scrollable height |
-
-### Sort Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `sortState` | `SortState[]` | Current sort configuration. Each item has `{ columnKey: string, direction: 'asc' \| 'desc' \| null }` |
-
-### Filter Properties
-
-| Property | Type | Description |
-|----------|------|-------------|
-| `filterState` | `FilterState[]` | Column filters. Each item has `{ columnKey: string, value: unknown, operator: FilterOperator }` |
-| `globalSearchTerm` | `string` | Global search term |
 
 ---
 
@@ -89,13 +71,13 @@ Bind to `gridState` to access the API:
 Select a single row.
 
 ```typescript
-gridState.selectRow('row-1');
+engine.selectRow('row-1');
 
 // With mode
-gridState.selectRow('row-1', 'toggle');  // Toggle selection
-gridState.selectRow('row-1', 'add');     // Add to selection
-gridState.selectRow('row-1', 'remove');  // Remove from selection
-gridState.selectRow('row-1', 'set');     // Clear others, select this one
+engine.selectRow('row-1', 'toggle');  // Toggle selection
+engine.selectRow('row-1', 'add');     // Add to selection
+engine.selectRow('row-1', 'remove');  // Remove from selection
+engine.selectRow('row-1', 'set');     // Clear others, select this one
 ```
 
 ### selectRange(targetRowId)
@@ -103,7 +85,7 @@ gridState.selectRow('row-1', 'set');     // Clear others, select this one
 Select a range of rows from the last selected row to the target row.
 
 ```typescript
-gridState.selectRange('row-5'); // Selects from lastSelectedRowId to 'row-5'
+engine.selectRange('row-5'); // Selects from lastSelectedRowId to 'row-5'
 ```
 
 ### selectAll()
@@ -111,7 +93,7 @@ gridState.selectRange('row-5'); // Selects from lastSelectedRowId to 'row-5'
 Select all rows.
 
 ```typescript
-gridState.selectAll();
+engine.selectAll();
 ```
 
 ### clearSelection()
@@ -119,7 +101,7 @@ gridState.selectAll();
 Clear all selection.
 
 ```typescript
-gridState.clearSelection();
+engine.clearSelection();
 ```
 
 ### isRowSelected(rowId)
@@ -127,7 +109,7 @@ gridState.clearSelection();
 Check if a row is selected.
 
 ```typescript
-const selected = gridState.isRowSelected('row-1'); // boolean
+const selected = engine.isRowSelected('row-1'); // boolean
 ```
 
 ---
@@ -139,13 +121,13 @@ const selected = gridState.isRowSelected('row-1'); // boolean
 Navigate by a number of rows relative to the current focused row.
 
 ```typescript
-gridState.navigateRow(1);   // Move down one row
-gridState.navigateRow(-1);  // Move up one row
-gridState.navigateRow(5);   // Move down 5 rows
+engine.navigateRow(1);   // Move down one row
+engine.navigateRow(-1);  // Move up one row
+engine.navigateRow(5);   // Move down 5 rows
 
 // With selection
-gridState.navigateRow(1, true);        // Move down and select
-gridState.navigateRow(1, true, true);  // Move down and extend selection (for Shift+Arrow)
+engine.navigateRow(1, true);        // Move down and select
+engine.navigateRow(1, true, true);  // Move down and extend selection (for Shift+Arrow)
 ```
 
 ### navigateToFirst(select?)
@@ -153,8 +135,8 @@ gridState.navigateRow(1, true, true);  // Move down and extend selection (for Sh
 Navigate to the first row.
 
 ```typescript
-gridState.navigateToFirst();
-gridState.navigateToFirst(true); // Navigate and select
+engine.navigateToFirst();
+engine.navigateToFirst(true); // Navigate and select
 ```
 
 ### navigateToLast(select?)
@@ -162,8 +144,8 @@ gridState.navigateToFirst(true); // Navigate and select
 Navigate to the last row.
 
 ```typescript
-gridState.navigateToLast();
-gridState.navigateToLast(true); // Navigate and select
+engine.navigateToLast();
+engine.navigateToLast(true); // Navigate and select
 ```
 
 ### navigateByPage(direction, select?)
@@ -171,125 +153,17 @@ gridState.navigateToLast(true); // Navigate and select
 Navigate by one page.
 
 ```typescript
-gridState.navigateByPage('down');        // Page down
-gridState.navigateByPage('up');          // Page up
-gridState.navigateByPage('down', true);  // Page down and select
+engine.navigateByPage('down');        // Page down
+engine.navigateByPage('up');          // Page up
+engine.navigateByPage('down', true);  // Page down and select
 ```
 
----
+### scrollToRow(index)
 
-## Filter API
-
-### setFilter(columnKey, value, operator?)
-
-Set a filter for a column.
+Scroll to bring a row into view.
 
 ```typescript
-// Simple contains filter (default operator)
-gridState.setFilter('name', 'john');
-
-// With specific operator
-gridState.setFilter('age', 21, 'gte');
-gridState.setFilter('status', 'active', 'eq');
-
-// Clear a filter by passing empty value
-gridState.setFilter('name', '');
-```
-
-### clearFilters()
-
-Clear all column filters.
-
-```typescript
-gridState.clearFilters();
-```
-
-### setGlobalSearch(term)
-
-Set the global search term.
-
-```typescript
-gridState.setGlobalSearch('search text');
-```
-
-### clearGlobalSearch()
-
-Clear the global search.
-
-```typescript
-gridState.clearGlobalSearch();
-```
-
----
-
-## Column API
-
-### setColumnVisibility(column, visible)
-
-Show or hide a column.
-
-```typescript
-gridState.setColumnVisibility('email', false); // Hide
-gridState.setColumnVisibility('email', true);  // Show
-```
-
-### setColumnWidth(columnKey, width)
-
-Set a column's width.
-
-```typescript
-gridState.setColumnWidth('name', 250);
-```
-
-### Getting column width
-
-Use the `columnWidths` property (a Map) to get current widths:
-
-```typescript
-const width = gridState.columnWidths.get('name'); // number | undefined
-```
-
-### autoSizeColumn(columnKey, options?)
-
-Auto-size a column to fit its content.
-
-```typescript
-// Basic auto-size
-gridState.autoSizeColumn('name');
-
-// With options
-gridState.autoSizeColumn('name', {
-  includeHeader: true,  // Include header text in sizing (default: true)
-  maxWidth: 400,        // Maximum width constraint
-  sampleSize: 100       // Number of rows to sample (default: 1000)
-});
-```
-
-### autoSizeAllColumns(options?)
-
-Auto-size all visible columns to fit their content.
-
-```typescript
-gridState.autoSizeAllColumns();
-```
-
-### setColumnPinned(columnKey, pinned)
-
-Pin a column to the left or right edge, or unpin it.
-
-```typescript
-gridState.setColumnPinned('id', 'left');    // Pin to left
-gridState.setColumnPinned('actions', 'right'); // Pin to right
-gridState.setColumnPinned('id', false);     // Unpin
-```
-
-### reorderColumn(columnKey, targetIndex)
-
-Move a column to a new position. Returns `true` if successful, `false` if the move was invalid (e.g., trying to move between pinned and unpinned sections).
-
-```typescript
-// Move 'email' column to be the first column (index 0)
-const success = gridState.reorderColumn('email', 0);
+engine.scrollToRow(100);
 ```
 
 ---
@@ -302,14 +176,14 @@ Set the sort for a column.
 
 ```typescript
 // Single column sort
-gridState.setSort('name', 'asc');
+engine.setSort('name', 'asc');
 
 // Clear sort for a column
-gridState.setSort('name', null);
+engine.setSort('name', null);
 
 // Multi-column sort (add to existing sorts)
-gridState.setSort('department', 'asc');
-gridState.setSort('name', 'asc', true); // multiSort = true
+engine.setSort('department', 'asc');
+engine.setSort('name', 'asc', true); // multiSort = true
 ```
 
 ### toggleSort(columnKey, multiSort?)
@@ -318,79 +192,95 @@ Toggle sort direction for a column (asc → desc → none).
 
 ```typescript
 // Toggle single column
-gridState.toggleSort('name');
+engine.toggleSort('name');
 
 // Toggle with multi-sort
-gridState.toggleSort('name', true);
+engine.toggleSort('name', true);
 ```
 
 ---
 
-## Scroll API
+## Filter API
 
-### scrollToRow(index, align?)
+### setFilter(columnKey, value, operator?)
 
-Scroll to bring a row into view.
+Set a filter for a column.
 
 ```typescript
-gridState.scrollToRow(100);
+// Simple contains filter (default operator)
+engine.setFilter('name', 'john');
 
-// With alignment
-gridState.scrollToRow(100, 'start');   // Align row to top
-gridState.scrollToRow(100, 'center');  // Center row in viewport
-gridState.scrollToRow(100, 'end');     // Align row to bottom
-gridState.scrollToRow(100, 'nearest'); // Scroll minimum distance (default)
+// With specific operator
+engine.setFilter('age', 21, 'gte');
+engine.setFilter('status', 'active', 'eq');
+
+// Clear a filter by passing empty value
+engine.setFilter('name', '');
 ```
 
-### Scrolling to top/bottom
+### clearFilters()
 
-Use `scrollToRow` with first or last index:
+Clear all column filters.
 
 ```typescript
-gridState.scrollToRow(0);                          // Scroll to top
-gridState.scrollToRow(gridState.totalRowCount - 1); // Scroll to bottom
+engine.clearFilters();
 ```
 
-### setScroll(top, left)
+### setGlobalSearch(term)
 
-Set scroll position directly.
+Set the global search term.
 
 ```typescript
-gridState.setScroll(0, 0); // Scroll to top-left
+engine.setGlobalSearch('search text');
 ```
 
 ---
 
-## Utility Methods
+## Column API
 
-### getRowId(row, index)
+### setColumnWidth(columnKey, width)
 
-Get the ID for a row using the configured `getRowId` function.
+Set a column's width.
 
 ```typescript
-const id = gridState.getRowId(row, 0);
+engine.setColumnWidth('name', 250);
 ```
 
-### Getting rows by index or ID
+### setColumnVisibility(columnKey, visible)
 
-Use the `rows` property to access data:
+Show or hide a column.
 
 ```typescript
-// Get row by index
-const row = gridState.rows[50];
-
-// Find row by ID
-const row = gridState.rows.find((r, i) => gridState.getRowId(r, i) === 'row-1');
+engine.setColumnVisibility('email', false); // Hide
+engine.setColumnVisibility('email', true);  // Show
 ```
 
-### setFocus(rowId, columnKey)
+---
 
-Set focus to a specific cell.
+## Edit API
+
+### startEdit(rowId, columnKey)
+
+Start editing a cell. Returns `true` if editing started successfully.
 
 ```typescript
-gridState.setFocus('row-1', 'name');
-gridState.setFocus('row-1', null); // Focus row only
-gridState.setFocus(null, null);    // Clear focus
+const started = engine.startEdit('row-1', 'name');
+```
+
+### commitEdit()
+
+Commit the current edit. Returns a promise that resolves to `true` if successful.
+
+```typescript
+const success = await engine.commitEdit();
+```
+
+### cancelEdit()
+
+Cancel the current edit without saving.
+
+```typescript
+engine.cancelEdit();
 ```
 
 ---
@@ -402,15 +292,7 @@ gridState.setFocus(null, null);    // Clear focus
 Force refresh data from the DataSource. Returns a promise that resolves when complete.
 
 ```typescript
-await gridState.refresh();
-```
-
-### waitForData()
-
-Wait for any pending data fetch to complete. Useful for testing or ensuring data is loaded.
-
-```typescript
-await gridState.waitForData();
+await engine.refresh();
 ```
 
 ### updateData(newData)
@@ -418,15 +300,30 @@ await gridState.waitForData();
 Update the source data (only works when using the `data` prop, not an external DataSource).
 
 ```typescript
-gridState.updateData(newData);
+engine.updateData(newData);
 ```
 
-### updateColumns(newColumns)
+### updateOptions(options)
 
-Update the column definitions.
+Update engine options dynamically.
 
 ```typescript
-gridState.updateColumns(newColumns);
+engine.updateOptions({
+  sortable: false,
+  editable: true
+});
+```
+
+---
+
+## Lifecycle
+
+### destroy()
+
+Clean up resources. Called automatically when the component unmounts.
+
+```typescript
+engine.destroy();
 ```
 
 ---
@@ -440,22 +337,28 @@ gridState.updateColumns(newColumns);
   const data = [/* ... */];
   const columns = [/* ... */];
 
-  let gridState;
+  let gridComponent;
 
   function selectActiveUsers() {
-    gridState.clearSelection();
-    gridState.rows
+    const engine = gridComponent.getEngine();
+    if (!engine) return;
+
+    engine.clearSelection();
+    engine.rows
       .filter(row => row.active)
-      .forEach(row => gridState.selectRow(row.id, 'add'));
+      .forEach(row => engine.selectRow(row.id, 'add'));
   }
 
   function filterHighValue() {
-    gridState.setFilter('value', 1000, 'gte');
+    gridComponent.getEngine()?.setFilter('value', 1000, 'gte');
   }
 
   function exportSelected() {
-    const selectedData = gridState.rows.filter(row =>
-      gridState.selectedIds.has(row.id)
+    const engine = gridComponent.getEngine();
+    if (!engine) return;
+
+    const selectedData = engine.rows.filter(row =>
+      engine.selectedIds.has(row.id)
     );
     console.log('Export:', selectedData);
   }
@@ -473,12 +376,13 @@ gridState.updateColumns(newColumns);
   selectable="multiple"
   filterable
   getRowId={(row) => row.id}
-  bind:gridState
+  bind:this={gridComponent}
 />
 ```
 
 ## See also
 
 - [Reference: DataGrid](./datagrid.md) - Component props
+- [Reference: GridEngine](./grid-engine.md) - Full GridEngine API
 - [How-to: Keyboard Navigation](../how-to/keyboard-navigation.md) - Navigation usage
 - [How-to: Filtering](../how-to/filtering.md) - Filter usage

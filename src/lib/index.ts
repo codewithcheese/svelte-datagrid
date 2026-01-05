@@ -2,12 +2,12 @@
 export { DataGrid } from './components/datagrid/index.js';
 export type { DataGridProps } from './components/datagrid/index.js';
 
+// Grid Engine (for advanced usage / custom wrappers)
+export { GridEngine, createGridEngine } from './engine/index.js';
+export type { GridEngineOptions } from './engine/index.js';
+
 // Types
 export * from './types/index.js';
-
-// State
-export { createGridState } from './state/grid-state.svelte.js';
-export type { GridStateInstance, GridOptions } from './state/grid-state.svelte.js';
 
 // Core utilities
 export { createVirtualizer } from './core/virtualizer.js';

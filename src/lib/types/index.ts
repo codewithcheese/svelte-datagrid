@@ -33,7 +33,5 @@ export type {
 	GridSortEvent,
 	GridSelectionChangeEvent,
 	GridCellEditEvent,
-	GridColumnResizeEvent,
-	GridColumnReorderEvent,
 	GridScrollEvent
 } from './events.js';
