@@ -28,3 +28,4 @@ test-results/
 
 # Benchmark results (latest results, not baseline)
 bench-results/
+playwright-report/
