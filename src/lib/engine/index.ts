@@ -50,3 +50,6 @@ export {
 	type EventManagerOptions,
 	type EditorManagerOptions
 } from './events/index.js';
+
+// Main GridEngine (orchestrator)
+export { GridEngine, createGridEngine, type GridEngineOptions } from './GridEngine.js';

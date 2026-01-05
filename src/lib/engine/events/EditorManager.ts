@@ -6,9 +6,9 @@
  */
 
 import type { StateManager } from '../state/StateManager.js';
-import type { ColumnDef, GridCellEditEvent } from '../../types/index.js';
+import type { ColumnDef } from '../../types/index.js';
 
-export interface EditorManagerOptions<TData> {
+export interface EditorManagerOptions<TData extends Record<string, unknown>> {
 	/** StateManager instance */
 	stateManager: StateManager<TData>;
 
@@ -23,9 +23,6 @@ export interface EditorManagerOptions<TData> {
 
 	/** Get cell element for positioning */
 	getCellElement: (rowId: string | number, columnKey: string) => HTMLElement | null;
-
-	/** Cell edit callback */
-	onCellEdit?: (event: GridCellEditEvent<TData>) => void;
 
 	/** Cell validation callback */
 	onCellValidate?: (rowId: string | number, columnKey: string, value: unknown) => string | null;
@@ -49,7 +46,7 @@ interface PooledEditor {
 	type: 'text' | 'number';
 }
 
-export class EditorManager<TData = unknown> {
+export class EditorManager<TData extends Record<string, unknown>> {
 	private options: EditorManagerOptions<TData>;
 	private editorPool: PooledEditor[] = [];
 	private activeEditor: PooledEditor | null = null;
@@ -168,19 +165,7 @@ export class EditorManager<TData = unknown> {
 			const success = await this.options.stateManager.commitEdit();
 
 			if (success) {
-				// Fire edit callback
-				const rowData = this.options.getRowData(this.currentRowId);
-				if (rowData && this.options.onCellEdit) {
-					this.options.onCellEdit({
-						row: rowData,
-						rowId: this.currentRowId,
-						columnKey: this.currentColumnKey,
-						oldValue: this.originalValue,
-						newValue,
-						column
-					});
-				}
-
+				// Edit callback is handled by StateManager, which notifies GridEngine
 				this.hideEditor();
 				return true;
 			} else {
@@ -421,6 +406,8 @@ export class EditorManager<TData = unknown> {
 /**
  * Factory function to create an EditorManager instance.
  */
-export function createEditorManager<TData>(options: EditorManagerOptions<TData>): EditorManager<TData> {
+export function createEditorManager<TData extends Record<string, unknown>>(
+	options: EditorManagerOptions<TData>
+): EditorManager<TData> {
 	return new EditorManager(options);
 }

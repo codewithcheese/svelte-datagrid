@@ -13,7 +13,7 @@
 import type { StateManager } from '../state/StateManager.js';
 import type { ColumnDef, GridCellClickEvent, GridRowClickEvent } from '../../types/index.js';
 
-export interface EventManagerOptions<TData> {
+export interface EventManagerOptions<TData extends Record<string, unknown>> {
 	/** StateManager instance */
 	stateManager: StateManager<TData>;
 
@@ -51,7 +51,7 @@ interface EventTarget {
 	isRow: boolean;
 }
 
-export class EventManager<TData = unknown> {
+export class EventManager<TData extends Record<string, unknown>> {
 	private container: HTMLElement;
 	private options: EventManagerOptions<TData>;
 	private boundHandlers: Map<string, EventListener> = new Map();
@@ -67,28 +67,28 @@ export class EventManager<TData = unknown> {
 	 */
 	private attachListeners(): void {
 		// Click events (row/cell click, selection)
-		const clickHandler = this.handleClick.bind(this);
+		const clickHandler = this.handleClick.bind(this) as EventListener;
 		this.container.addEventListener('click', clickHandler);
 		this.boundHandlers.set('click', clickHandler);
 
 		// Double-click for editing
-		const dblClickHandler = this.handleDoubleClick.bind(this);
+		const dblClickHandler = this.handleDoubleClick.bind(this) as EventListener;
 		this.container.addEventListener('dblclick', dblClickHandler);
 		this.boundHandlers.set('dblclick', dblClickHandler);
 
 		// Keyboard navigation
-		const keydownHandler = this.handleKeyDown.bind(this);
+		const keydownHandler = this.handleKeyDown.bind(this) as EventListener;
 		this.container.addEventListener('keydown', keydownHandler);
 		this.boundHandlers.set('keydown', keydownHandler);
 
 		// Scroll events
-		const scrollHandler = this.handleScroll.bind(this);
+		const scrollHandler = this.handleScroll.bind(this) as EventListener;
 		this.container.addEventListener('scroll', scrollHandler);
 		this.boundHandlers.set('scroll', scrollHandler);
 
 		// Touch events for mobile
-		const touchStartHandler = this.handleTouchStart.bind(this);
-		const touchMoveHandler = this.handleTouchMove.bind(this);
+		const touchStartHandler = this.handleTouchStart.bind(this) as EventListener;
+		const touchMoveHandler = this.handleTouchMove.bind(this) as EventListener;
 		this.container.addEventListener('touchstart', touchStartHandler, { passive: true });
 		this.container.addEventListener('touchmove', touchMoveHandler, { passive: true });
 		this.boundHandlers.set('touchstart', touchStartHandler);
@@ -363,7 +363,7 @@ export class EventManager<TData = unknown> {
 /**
  * Factory function to create an EventManager instance.
  */
-export function createEventManager<TData>(
+export function createEventManager<TData extends Record<string, unknown>>(
 	container: HTMLElement,
 	options: EventManagerOptions<TData>
 ): EventManager<TData> {
