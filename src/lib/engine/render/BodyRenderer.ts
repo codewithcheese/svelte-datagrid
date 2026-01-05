@@ -170,6 +170,9 @@ export class BodyRenderer<TData extends Record<string, unknown>> {
 		element.classList.toggle('even', isEven);
 		element.classList.toggle('odd', !isEven);
 
+		// Update aria-selected for accessibility
+		element.setAttribute('aria-selected', String(isSelected));
+
 		// Apply custom row class
 		if (rowClass) {
 			const customClass = rowClass(row, rowIndex);

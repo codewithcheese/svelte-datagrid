@@ -163,6 +163,7 @@ export class RowPool {
 		const element = document.createElement('div');
 		element.className = 'datagrid-row';
 		element.setAttribute('role', 'row');
+		element.setAttribute('data-testid', 'datagrid-row');
 		element.style.height = `${this.rowHeight}px`;
 		element.style.display = 'flex';
 		element.style.position = 'relative';

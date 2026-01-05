@@ -303,6 +303,7 @@ export class HeaderRenderer<TData extends Record<string, unknown>> {
 		const element = document.createElement('div');
 		element.className = 'datagrid-header-cell';
 		element.setAttribute('role', 'columnheader');
+		element.setAttribute('data-testid', 'datagrid-header-cell');
 		element.style.display = 'flex';
 		element.style.alignItems = 'center';
 		element.style.padding = '0 12px';
