@@ -94,6 +94,11 @@ export class EventManager<TData extends Record<string, unknown>> {
 		this.boundHandlers.set('touchstart', touchStartHandler);
 		this.boundHandlers.set('touchmove', touchMoveHandler);
 
+		// Wheel events for scrolling
+		const wheelHandler = this.handleWheel.bind(this) as EventListener;
+		this.container.addEventListener('wheel', wheelHandler, { passive: true });
+		this.boundHandlers.set('wheel', wheelHandler);
+
 		// Make container focusable if selectable
 		if (this.options.selectable) {
 			this.container.setAttribute('tabindex', '0');
@@ -322,6 +327,17 @@ export class EventManager<TData extends Record<string, unknown>> {
 		const deltaY = this.touchStartY - touchY;
 		const newScrollTop = this.touchStartScrollTop + deltaY;
 		this.options.stateManager.setScroll(newScrollTop, this.options.stateManager.scrollLeft);
+	}
+
+	/**
+	 * Handle wheel events for scrolling.
+	 * This ensures wheel events work reliably across all environments.
+	 */
+	private handleWheel(event: WheelEvent): void {
+		const { stateManager } = this.options;
+		const newScrollTop = stateManager.scrollTop + event.deltaY;
+		const newScrollLeft = stateManager.scrollLeft + event.deltaX;
+		stateManager.setScroll(newScrollTop, newScrollLeft);
 	}
 
 	/**
