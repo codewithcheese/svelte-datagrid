@@ -25,14 +25,14 @@
   },
   "initialRender1K": {
     "n": 20,
-    "min": 10,
-    "max": 50,
-    "mean": 20,
-    "median": 18,
-    "p75": 25,
-    "p95": 40,
-    "p99": 45,
-    "stdDev": 8
+    "min": 12,
+    "max": 55,
+    "mean": 24,
+    "median": 22,
+    "p75": 28,
+    "p95": 45,
+    "p99": 50,
+    "stdDev": 10
   },
   "initialRender100K": {
     "n": 15,
