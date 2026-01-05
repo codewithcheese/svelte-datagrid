@@ -19,3 +19,24 @@ export type {
 
 // State management
 export { StateManager, createStateManager, isMutableDataSource } from './state/StateManager.js';
+
+// Rendering
+export {
+	// Pooling
+	RowPool,
+	createRowPool,
+	CellPool,
+	createCellPool,
+	// Renderers
+	BodyRenderer,
+	createBodyRenderer,
+	HeaderRenderer,
+	createHeaderRenderer,
+	// Types
+	type PooledRow,
+	type RowPoolOptions,
+	type PooledCell,
+	type BodyRendererOptions,
+	type CellRenderContext,
+	type HeaderRendererOptions
+} from './render/index.js';
