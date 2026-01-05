@@ -1,0 +1,136 @@
+{
+  "_comment": "Baseline performance metrics for regression detection. These values should be updated by running: pnpm bench:playwright:update-baseline",
+  "_updated": "2025-01-05",
+  "dataGeneration100K": {
+    "n": 30,
+    "min": 15,
+    "max": 40,
+    "mean": 20,
+    "median": 18,
+    "p75": 22,
+    "p95": 30,
+    "p99": 35,
+    "stdDev": 5
+  },
+  "dataGeneration1M": {
+    "n": 10,
+    "min": 150,
+    "max": 300,
+    "mean": 180,
+    "median": 170,
+    "p75": 200,
+    "p95": 250,
+    "p99": 280,
+    "stdDev": 30
+  },
+  "initialRender1K": {
+    "n": 20,
+    "min": 10,
+    "max": 50,
+    "mean": 20,
+    "median": 18,
+    "p75": 25,
+    "p95": 40,
+    "p99": 45,
+    "stdDev": 8
+  },
+  "initialRender100K": {
+    "n": 15,
+    "min": 50,
+    "max": 200,
+    "mean": 80,
+    "median": 70,
+    "p75": 90,
+    "p95": 150,
+    "p99": 180,
+    "stdDev": 30
+  },
+  "initialRender1M": {
+    "n": 10,
+    "min": 200,
+    "max": 800,
+    "mean": 350,
+    "median": 300,
+    "p75": 400,
+    "p95": 600,
+    "p99": 750,
+    "stdDev": 100
+  },
+  "scroll100K": {
+    "n": 100,
+    "min": 1,
+    "max": 10,
+    "mean": 3,
+    "median": 2.5,
+    "p75": 4,
+    "p95": 8,
+    "p99": 10,
+    "stdDev": 2
+  },
+  "scroll1M": {
+    "n": 100,
+    "min": 1,
+    "max": 12,
+    "mean": 3.5,
+    "median": 3,
+    "p75": 4.5,
+    "p95": 10,
+    "p99": 12,
+    "stdDev": 2.5
+  },
+  "sort100K": {
+    "n": 20,
+    "min": 30,
+    "max": 80,
+    "mean": 45,
+    "median": 42,
+    "p75": 50,
+    "p95": 70,
+    "p99": 78,
+    "stdDev": 12
+  },
+  "filter100K": {
+    "n": 20,
+    "min": 5,
+    "max": 25,
+    "mean": 10,
+    "median": 8,
+    "p75": 12,
+    "p95": 20,
+    "p99": 23,
+    "stdDev": 4
+  },
+  "fullFlow1M": {
+    "n": 5,
+    "min": 400,
+    "max": 1200,
+    "mean": 600,
+    "median": 550,
+    "p75": 700,
+    "p95": 1000,
+    "p99": 1100,
+    "stdDev": 150
+  },
+  "dataUpdate1Kto100K": {
+    "n": 15,
+    "min": 50,
+    "max": 200,
+    "mean": 90,
+    "median": 80,
+    "p75": 100,
+    "p95": 160,
+    "p99": 190,
+    "stdDev": 35
+  },
+  "dataUpdate100Kto1M": {
+    "n": 10,
+    "min": 200,
+    "max": 600,
+    "mean": 320,
+    "median": 290,
+    "p75": 380,
+    "p95": 520,
+    "p99": 580,
+    "stdDev": 90
+  }
+}

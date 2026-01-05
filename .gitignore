@@ -24,3 +24,6 @@ vite.config.ts.timestamp-*
 
 # Test artifacts
 **/__screenshots__/
+
+# Benchmark results (latest results, not baseline)
+bench-results/
