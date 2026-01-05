@@ -8,6 +8,13 @@ declare global {
 		// interface PageState {}
 		// interface Platform {}
 	}
+
+	/**
+	 * Compile-time constant for benchmark instrumentation.
+	 * Set via BENCH=1 environment variable during build.
+	 * When false, all benchmark code is tree-shaken from production builds.
+	 */
+	const __BENCH__: boolean;
 }
 
 export {};

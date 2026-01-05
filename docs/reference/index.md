@@ -42,6 +42,12 @@ Reference documentation is for developers who **already know what they're lookin
 |----------|-------------|
 | [CSS Variables](./css-variables.md) | Theming tokens and defaults |
 
+## Performance Reference
+
+| Document | Description |
+|----------|-------------|
+| [Benchmarks](./benchmarks.md) | Performance targets and benchmarks |
+
 ---
 
 ## Quick lookup
