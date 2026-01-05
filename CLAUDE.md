@@ -94,3 +94,26 @@ See `docs/DOCS_MAINTENANCE.md` for complete methodology.
 | Sort 100K rows | <100ms |
 | Filter 100K rows | <50ms |
 | Scroll frame | <5ms |
+
+## Tool Learning Log
+
+**Instruction**: Write a log recording concrete information about tools (not implementation details) as discoveries are made.
+
+### Playwright Benchmarks (`bench/interactions.spec.ts`)
+- Run specific benchmark: `pnpm exec playwright test --config playwright.bench.config.ts bench/interactions.spec.ts -g "test name"`
+- Run all benchmarks: `pnpm exec playwright test --config playwright.bench.config.ts bench/interactions.spec.ts`
+- Uses `preview` mode (production build) - must run `pnpm build` first if testing changes
+- `page.waitForFunction()` runs in browser context - parameters must be serializable
+- `page.locator().first()` returns first in DOM order, not visual order - use specific selectors when order matters
+- `page.evaluate()` results are synchronous within each call but async between calls
+
+### DOM Pooling Quirks
+- Row elements in DOM are reused from pool, so DOM order ≠ visual order
+- When querying rows, sort by `data-row-index` to get visual order
+- `data-row-id` contains the actual data ID, `data-row-index` is the visual position
+- Released rows have `display: none` but stay in DOM
+
+### Event Timing in Headless
+- `requestAnimationFrame` may not fire reliably in headless Chrome
+- Use `setTimeout(0)` as fallback alongside rAF for render scheduling
+- Always await `page.evaluate(() => new Promise(r => requestAnimationFrame(r)))` before checking DOM updates
