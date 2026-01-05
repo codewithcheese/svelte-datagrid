@@ -43,10 +43,12 @@ export default defineConfig({
 		}
 	],
 	webServer: {
-		// Build with BENCH=1 and run preview
-		command: 'BENCH=1 pnpm build && pnpm preview --port 4173',
+		// Run preview server (build should be done separately via bench:build script)
+		command: 'pnpm preview --port 4173',
 		url: 'http://localhost:4173',
 		reuseExistingServer: !isCI,
-		timeout: 120_000 // Allow time for build
+		timeout: 30_000,
+		stdout: 'pipe',
+		stderr: 'pipe'
 	}
 });
